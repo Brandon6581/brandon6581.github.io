@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Slimed Out!",
+    "slug": "slimed-out",
+    "description": "An idle slime-collecting clicker. Tap to make goo, unlock a growing collection of slimes, and let them work while you're away.",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "slimedout",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#141626",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.slimedout"
+    },
+    "android": {
+      "package": "com.example.slimedout",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#141626"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#141626"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

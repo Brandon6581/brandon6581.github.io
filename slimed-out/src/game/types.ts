@@ -1,0 +1,85 @@
+// Core data shapes for Slimed Out!
+
+export interface SlimeDef {
+  id: string;
+  name: string;
+  tier: number;
+  /** In-app flavor text shown on the slime's card. */
+  flavor: string;
+  /** Optional short attribution shown under folklore-inspired slimes. */
+  originNote?: string;
+  /** Cost of the first unit; each subsequent unit costs baseCost * costGrowth^owned. */
+  baseCost: number;
+  costGrowth: number;
+  /** Goo produced per second, per owned unit, before multipliers. */
+  baseGps: number;
+  /** Lifetime goo earned required before this slime appears in the shop. */
+  unlockAtLifetimeGoo: number;
+  emoji: string;
+  colors: [string, string];
+}
+
+/** Owned-count milestones at which a slime's per-unit production upgrade becomes available. */
+export const SLIME_UPGRADE_MILESTONES = [1, 5, 10, 25, 50, 100, 150, 200] as const;
+
+export interface TapUpgradeDef {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  /** Flat goo added to every tap. */
+  addPower: number;
+  /** Lifetime goo earned required before this upgrade appears. */
+  unlockAtLifetimeGoo: number;
+  emoji: string;
+}
+
+export type AddOnPriceTier = 0.25 | 0.5;
+
+export interface AddOnDef {
+  id: string;
+  name: string;
+  description: string;
+  price: AddOnPriceTier;
+  emoji: string;
+  /** Small, optional, non-essential effect. Never required for full progression. */
+  effect:
+    | { kind: 'cosmetic' }
+    | { kind: 'globalProductionMult'; value: number }
+    | { kind: 'offlineCapBonusHours'; value: number };
+}
+
+export interface IAPProductDef {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  kind: 'noAds' | 'addOn';
+}
+
+export interface OwnedSlimeState {
+  count: number;
+  /** Indices into SLIME_UPGRADE_MILESTONES that have been purchased. */
+  upgradeLevels: number;
+}
+
+export interface OfflineResult {
+  elapsedMs: number;
+  cappedMs: number;
+  gooEarned: number;
+}
+
+export interface GameState {
+  goo: number;
+  lifetimeGoo: number;
+  totalTaps: number;
+  tapPower: number;
+  slimes: Record<string, OwnedSlimeState>;
+  purchasedTapUpgrades: string[];
+  purchasedAddOns: string[];
+  noAdsPurchased: boolean;
+  lastSavedAt: number;
+  createdAt: number;
+  lastAdShownAt: number;
+  soundEnabled: boolean;
+}
