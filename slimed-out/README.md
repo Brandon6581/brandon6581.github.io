@@ -72,12 +72,37 @@ npx expo start
 
 From the Expo CLI output you can open the app in:
 
+- [Expo Go](https://expo.dev/go) on a physical phone (fastest way to try it - see below)
 - an iOS Simulator or Android Emulator
-- [Expo Go](https://expo.dev/go) on a physical device (fastest way to try it)
 - a web browser (`npx expo start --web`)
 
 Ads and in-app purchases will use their mock/dev implementations in all of
 these - see the Monetization section above.
+
+### Trying it on your phone with Expo Go
+
+Each build of Expo Go bundles exactly **one** Expo SDK version, and it has to
+match the `expo` version in `package.json` or you'll get "Project is
+incompatible with this version of Expo Go".
+
+This project targets **SDK 54**, which is the version currently published on
+the App Store and Play Store - so the stock Expo Go download works on both
+platforms with no extra steps:
+
+1. Install **Expo Go** from the [App Store](https://apps.apple.com/us/app/expo-go/id982107779)
+   or Play Store.
+2. Run `npx expo start` on your computer.
+3. Make sure the phone and computer are on the **same Wi-Fi network**, then
+   scan the QR code from the terminal - with the Camera app on iOS, or from
+   inside Expo Go on Android.
+
+If the phone and computer can't be put on the same network (guest Wi-Fi, VPN,
+or locked-down corporate networks often block this), run
+`npx expo start --tunnel` instead, which routes through Expo's servers.
+
+Note that if you ever upgrade this project past SDK 54, Expo Go is no longer
+distributed on the App Store for SDK 55+ - you'd need a matching build from
+[sign.expo.dev](https://sign.expo.dev) or a development build via EAS.
 
 ## Before publishing to the App Store / Play Store
 
