@@ -4,6 +4,10 @@ An idle slime-collecting clicker built with [Expo](https://expo.dev) / React Nat
 Tap to make goo, unlock a growing collection of slimes that produce goo on their
 own, buy upgrades, and keep earning while the app is closed.
 
+> **New to this codebase?** [`HANDOFF.md`](./HANDOFF.md) is the developer handoff -
+> code map, economy tuning knobs, what's still mocked before release, and the
+> non-obvious traps worth knowing about first.
+
 ## Gameplay
 
 - **Tap** the Basic Slime on the Home tab to earn goo directly.
