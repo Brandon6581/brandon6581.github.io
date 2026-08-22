@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { GameScreen } from '@/src/components/GameScreen';
+import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { useIAP } from '@/src/components/IAPProvider';
 import { NameEditor } from '@/src/components/NameEditor';
 import { DevPanel } from '@/src/dev/DevPanel';
@@ -11,6 +12,7 @@ import { DEFAULT_DISPLAY_NAME, DEFAULT_FARM_NAME, useGameStore } from '@/src/gam
 import { theme } from '@/src/theme';
 
 export default function SettingsScreen() {
+  const bottomPad = useTabContentPadding();
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const toggleSound = useGameStore((s) => s.toggleSound);
   const resetProgress = useGameStore((s) => s.resetProgress);
@@ -53,7 +55,7 @@ export default function SettingsScreen() {
 
   return (
     <GameScreen title="Settings">
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
         {hasFoundersBadge && (
           <View style={styles.badgeCard}>
             <Text style={styles.badgeText}>Founder - thanks for supporting Slimed Out!</Text>
@@ -89,6 +91,9 @@ export default function SettingsScreen() {
                 ]}
                 disabled={!unlocked}
                 onPress={() => setBackdrop(b.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${b.name} backdrop`}
               >
                 <View style={styles.swatchRow}>
                   <View style={[styles.swatch, { backgroundColor: b.sky[0] }]} />
@@ -121,13 +126,22 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Pressable style={styles.actionButton} disabled={restoring} onPress={handleRestore}>
+        <Pressable
+          style={styles.actionButton}
+          disabled={restoring}
+          onPress={handleRestore}
+          accessibilityRole="button"
+        >
           <Text style={styles.actionButtonText}>
             {restoring ? 'Restoring…' : 'Restore Purchases'}
           </Text>
         </Pressable>
 
-        <Pressable style={[styles.actionButton, styles.dangerButton]} onPress={handleReset}>
+        <Pressable
+          style={[styles.actionButton, styles.dangerButton]}
+          onPress={handleReset}
+          accessibilityRole="button"
+        >
           <Text style={styles.actionButtonText}>Reset Progress</Text>
         </Pressable>
 
@@ -197,6 +211,8 @@ const styles = StyleSheet.create({
   },
   backdropGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   backdropCard: {
+    minHeight: 44,
+    justifyContent: 'center',
     flexGrow: 1,
     flexBasis: '45%',
     backgroundColor: 'rgba(18,24,20,0.62)',
@@ -242,6 +258,8 @@ const styles = StyleSheet.create({
   label: { color: theme.textPrimary, fontSize: 15, fontWeight: '600' },
   value: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
   actionButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentBlue,
     borderRadius: 14,
     paddingVertical: 14,

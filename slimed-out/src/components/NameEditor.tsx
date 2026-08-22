@@ -41,10 +41,18 @@ export function NameEditor({ visible, title, initialValue, placeholder, onSave, 
             {value.trim().length}/{MAX_NAME_LENGTH}
           </Text>
           <View style={styles.row}>
-            <Pressable style={[styles.button, styles.cancel]} onPress={onCancel}>
+            <Pressable
+              style={[styles.button, styles.cancel]}
+              onPress={onCancel}
+              accessibilityRole="button"
+            >
               <Text style={styles.buttonText}>Cancel</Text>
             </Pressable>
-            <Pressable style={[styles.button, styles.save]} onPress={() => onSave(value)}>
+            <Pressable
+              style={[styles.button, styles.save]}
+              onPress={() => onSave(value)}
+              accessibilityRole="button"
+            >
               <Text style={styles.buttonText}>Save</Text>
             </Pressable>
           </View>

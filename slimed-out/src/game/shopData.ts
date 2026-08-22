@@ -152,7 +152,7 @@ export const SHOP_ITEMS: ShopItemDef[] = [
     id: 'skin_golden',
     name: 'Golden Slime',
     blurb:
-      'A rare golden Basic Slime. It shows up on its own once in a while - this is for anyone who never caught one.',
+      'A rare golden Basic Slime, and it earns its keep: +10% to all production and +25% tap power while you own it. It also shows up on its own once in a while - this is for anyone who never caught one.',
     price: 0.5,
     category: 'rare',
     status: 'available',
@@ -211,7 +211,7 @@ export const SHOP_ITEMS: ShopItemDef[] = [
     id: 'starter_pack',
     name: 'Starter Pack',
     blurb:
-      'A goo head start plus the Verdant Basic skin and the Wisp Glow trail. One time only.',
+      'A goo headstart plus the Verdant Basic skin and the Wisp Glow trail. One time only.',
     price: 0.99,
     category: 'bundle',
     status: 'available',
@@ -230,7 +230,7 @@ export const SHOP_ITEMS: ShopItemDef[] = [
     price: null,
     category: 'soon',
     status: 'comingSoon',
-    note: 'Needs player accounts, which the game does not have yet.',
+    note: 'Planned for a future update.',
     effect: { kind: 'none' },
   },
   {

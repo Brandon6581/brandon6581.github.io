@@ -22,7 +22,7 @@ export function SkinFoundModal({ skin, onClose }: { skin: SlimeSkinDef | null; o
               </Text>
             </>
           )}
-          <Pressable style={styles.button} onPress={onClose}>
+          <Pressable style={styles.button} onPress={onClose} accessibilityRole="button">
             <Text style={styles.buttonText}>Keep it</Text>
           </Pressable>
         </View>

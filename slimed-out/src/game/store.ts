@@ -54,6 +54,9 @@ function initialState(): GameState {
     ownedSkins: [],
     boostExpiresAt: 0,
     boostMultiplier: 2,
+    onboardingComplete: false,
+    freeFarmNameUsed: false,
+    freeDisplayNameUsed: false,
     devModeEnabled: false,
   };
 }
@@ -89,6 +92,9 @@ interface GameActions {
   setBackdrop: (id: string) => void;
   setFarmName: (name: string) => void;
   setDisplayName: (name: string) => void;
+  completeOnboarding: (farmName: string, displayName: string) => void;
+  canRenameFarm: () => boolean;
+  canRenameSelf: () => boolean;
   setDevMode: (enabled: boolean) => void;
   toggleDevMode: () => void;
   grantDevGoo: () => void;
@@ -257,14 +263,50 @@ export const useGameStore = create<GameStore>()(
 
       setBackdrop: (id: string) => set({ selectedBackdropId: id }),
 
+      /**
+       * Naming is allowed when the player owns the shop item OR still has
+       * their one free change. Using the free one consumes it, so the shop
+       * item is what buys *repeat* changes rather than the first one.
+       */
+      canRenameFarm: () => {
+        const s = get();
+        return ownsItem(s, 'name_your_farm') || !s.freeFarmNameUsed;
+      },
+
+      canRenameSelf: () => {
+        const s = get();
+        return ownsItem(s, 'custom_username') || !s.freeDisplayNameUsed;
+      },
+
       setFarmName: (name: string) => {
-        if (!ownsItem(get(), 'name_your_farm')) return;
-        set({ farmName: sanitizeName(name, DEFAULT_FARM_NAME) });
+        const s = get();
+        if (!get().canRenameFarm()) return;
+        const usedFree = !ownsItem(s, 'name_your_farm');
+        set({
+          farmName: sanitizeName(name, DEFAULT_FARM_NAME),
+          ...(usedFree ? { freeFarmNameUsed: true } : null),
+        });
       },
 
       setDisplayName: (name: string) => {
-        if (!ownsItem(get(), 'custom_username')) return;
-        set({ displayName: sanitizeName(name, DEFAULT_DISPLAY_NAME) });
+        const s = get();
+        if (!get().canRenameSelf()) return;
+        const usedFree = !ownsItem(s, 'custom_username');
+        set({
+          displayName: sanitizeName(name, DEFAULT_DISPLAY_NAME),
+          ...(usedFree ? { freeDisplayNameUsed: true } : null),
+        });
+      },
+
+      /** First-run naming is free and does not consume the free changes twice. */
+      completeOnboarding: (farmName: string, displayName: string) => {
+        set({
+          farmName: sanitizeName(farmName, DEFAULT_FARM_NAME),
+          displayName: sanitizeName(displayName, DEFAULT_DISPLAY_NAME),
+          freeFarmNameUsed: true,
+          freeDisplayNameUsed: true,
+          onboardingComplete: true,
+        });
       },
 
       // Developer testing mode. These are inert in a release build: the guard
@@ -296,6 +338,9 @@ export const useGameStore = create<GameStore>()(
           displayName: s.displayName,
           selectedBackdropId: s.selectedBackdropId,
           devModeEnabled: s.devModeEnabled,
+          onboardingComplete: s.onboardingComplete,
+          freeFarmNameUsed: s.freeFarmNameUsed,
+          freeDisplayNameUsed: s.freeDisplayNameUsed,
         });
       },
 
@@ -304,7 +349,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 4,
+      version: 5,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -334,6 +379,14 @@ export const useGameStore = create<GameStore>()(
 
         if (fromVersion < 4) {
           patched.devModeEnabled ??= false;
+        }
+
+        if (fromVersion < 5) {
+          // Existing players already have names and should not be sent through
+          // onboarding, but they still get their one free change each.
+          patched.onboardingComplete ??= true;
+          patched.freeFarmNameUsed ??= false;
+          patched.freeDisplayNameUsed ??= false;
         }
 
         return patched;

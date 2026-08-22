@@ -3,17 +3,20 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { IvyFrame } from '@/src/art/IvyFrame';
 import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
 import { GameScreen } from '@/src/components/GameScreen';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
 import { ownedSkinIds } from '@/src/game/entitlements';
+import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
 import { SLIMES, SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
-import { formatDuration, formatNumber } from '@/src/utils/format';
+import { computeGps, computeTapValue } from '@/src/game/economy';
+import { formatDuration, formatGps, formatNumber } from '@/src/utils/format';
 
 /**
  * ============================================================================
@@ -48,6 +51,7 @@ interface Floater {
 let floaterId = 0;
 
 export default function HomeScreen() {
+  const bottomPad = useTabContentPadding();
   const tap = useGameStore((s) => s.tap);
   const totalTaps = useGameStore((s) => s.totalTaps);
   const slimes = useGameStore((s) => s.slimes);
@@ -142,6 +146,8 @@ export default function HomeScreen() {
 
   const ownedSummary = SLIMES.filter((s) => (slimes[s.id]?.count ?? 0) > 0);
   const heroLook = resolveLook('basic', SLIME_BY_ID.basic.look, ownedSkins);
+  const tapValue = computeTapValue(state);
+  const gps = computeGps(state);
   const boostRunning = boostLeft > 0;
 
   return (
@@ -155,6 +161,10 @@ export default function HomeScreen() {
       )}
 
       <View style={styles.stage}>
+        {/* Decorative gold ivy framing the stage. Behind everything, never
+            interactive, corner-only so it cannot cross the slime or the text. */}
+        <IvyFrame />
+
         {/* ---- Layer 1: decorative sprite. Never interactive. ---- */}
         <Animated.View
           pointerEvents="none"
@@ -192,14 +202,20 @@ export default function HomeScreen() {
           style={StyleSheet.absoluteFill}
           onPress={handleTap}
           accessibilityRole="button"
-          accessibilityLabel="Tap the slime to make goo"
+          accessibilityLabel={`Tap the slime to make goo. Each tap gives ${formatNumber(tapValue)} goo.`}
+          accessibilityHint="Double tap to collect goo"
         />
       </View>
 
-      <Text style={styles.hint}>Tap the slime to make goo</Text>
-      <Text style={styles.tapCount}>{formatNumber(totalTaps)} taps total</Text>
+      <Text style={styles.hint}>+{formatNumber(tapValue)} per tap</Text>
+      <Text
+        style={styles.tapCount}
+        accessibilityLabel={`${formatNumber(totalTaps)} taps so far, producing ${formatGps(gps)}`}
+      >
+        {formatNumber(totalTaps)} taps · {formatGps(gps)}
+      </Text>
 
-      <ScrollView contentContainerStyle={styles.summary} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.summary, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.summaryTitle}>Your collection</Text>
         {ownedSummary.length === 0 ? (
           <Text style={styles.empty}>
@@ -273,14 +289,15 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: 4,
-    color: theme.textSecondary,
-    fontSize: 13,
+    color: theme.accentGreen,
+    fontSize: 16,
+    fontWeight: '700',
     textAlign: 'center',
   },
   tapCount: {
-    marginTop: 2,
-    color: theme.textMuted,
-    fontSize: 12,
+    marginTop: 3,
+    color: theme.textSecondary,
+    fontSize: 13,
     textAlign: 'center',
   },
   summary: {

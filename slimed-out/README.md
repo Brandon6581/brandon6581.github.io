@@ -50,12 +50,11 @@ below is required, and nothing gates progression.
 - **Rare finds - $0.50**: the Golden Slime. It also turns up on its own during
   normal play - this is only for anyone who never caught one.
 - **Collection - $0.25 to $0.50**: alternate slime skins and tap trails.
-- **Starter Pack - $0.99**: a goo head start plus two cosmetics, cheaper than
+- **Starter Pack - $0.99**: a goo headstart plus two cosmetics, cheaper than
   buying the parts.
 
 Backdrops are free for everyone and chosen in Settings. "Gift a Friend" and
-"More Farm Plots" appear as Coming Soon and are not purchasable - gifting needs
-player accounts, which the game does not have yet.
+"More Farm Plots" appear as Coming Soon and are not purchasable.
 
 Ads and purchases run on **mock services** out of the box so the whole game
 loop, shop, and ad pacing can be built and tested without any store

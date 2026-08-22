@@ -28,7 +28,7 @@ export function AdModal({ visible, onClose }: { visible: boolean; onClose: () =>
             src/services/adService.ts to replace it before release.
           </Text>
           <Pressable
-            style={[styles.button, secondsLeft > 0 && styles.buttonDisabled]}
+            style={[styles.button, secondsLeft> 0 && styles.buttonDisabled]}
             disabled={secondsLeft > 0}
             onPress={onClose}
           >

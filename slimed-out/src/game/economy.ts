@@ -1,4 +1,5 @@
-import { ownedItemIds } from './entitlements';
+import { ownedItemIds, ownsSkin } from './entitlements';
+import { GOLDEN_SKIN_ID } from './skinData';
 import { SHOP_ITEM_BY_ID } from './shopData';
 import { SLIME_BY_ID, SLIMES } from './slimeData';
 import { GameState, OfflineResult, OwnedSlimeState, SLIME_UPGRADE_MILESTONES, SlimeDef } from './types';
@@ -38,6 +39,22 @@ export function shopGlobalMultiplier(state: GameState): number {
   return mult;
 }
 
+/**
+ * Owning the rare golden variant is worth something beyond looks: a standing
+ * production bonus and a bigger bonus to tapping.
+ */
+export const GOLDEN_PRODUCTION_BONUS = 0.1;
+export const GOLDEN_TAP_BONUS = 0.25;
+
+export function hasGolden(state: GameState): boolean {
+  return ownsSkin(state, GOLDEN_SKIN_ID);
+}
+
+/** Production multiplier contributed by owned collectibles. */
+export function skinGlobalMultiplier(state: GameState): number {
+  return hasGolden(state) ? 1 + GOLDEN_PRODUCTION_BONUS : 1;
+}
+
 export function isBoostActive(state: GameState, nowMs: number = Date.now()): boolean {
   return state.boostExpiresAt > nowMs;
 }
@@ -53,7 +70,7 @@ export function boostMultiplier(state: GameState, nowMs: number = Date.now()): n
  * slice of time it was actually running.
  */
 export function baseGlobalMultiplier(state: GameState): number {
-  return globalMilestoneMultiplier(state) * shopGlobalMultiplier(state);
+  return globalMilestoneMultiplier(state) * shopGlobalMultiplier(state) * skinGlobalMultiplier(state);
 }
 
 /** Full multiplier including any running boost. Use for live play and display. */
@@ -77,9 +94,34 @@ export function computeGps(state: GameState, nowMs: number = Date.now()): number
   return rawGps(state) * globalMultiplier(state, nowMs);
 }
 
-/** Goo awarded for a single tap, including tap upgrades and global multipliers. */
+/**
+ * How much of a tap comes from production rather than flat tap power.
+ *
+ * A purely flat tap power cannot keep up with an idle curve: by mid-game a
+ * fully-upgraded tap was worth about 0.15 seconds of passive income, so
+ * tapping felt like it did nothing even though it was adding goo. Giving each
+ * tap a *share of current production* makes active play stay meaningful at
+ * every tier, and it scales itself as new slimes are added - no need to
+ * re-tune tap numbers every time the roster grows.
+ */
+export const TAP_BASE_GPS_SECONDS = 0.05;
+export const TAP_GPS_SECONDS_PER_UPGRADE = 0.02;
+
+/** Seconds of production each tap is worth, given upgrades purchased. */
+export function tapGpsSeconds(state: GameState): number {
+  return TAP_BASE_GPS_SECONDS + state.purchasedTapUpgrades.length * TAP_GPS_SECONDS_PER_UPGRADE;
+}
+
+/**
+ * Goo awarded for a single tap: flat tap power (which carries the early game,
+ * before there is any production to take a share of) plus a slice of current
+ * output. The golden variant adds a further bonus on the flat part.
+ */
 export function computeTapValue(state: GameState, nowMs: number = Date.now()): number {
-  return state.tapPower * globalMultiplier(state, nowMs);
+  const goldenTap = hasGolden(state) ? 1 + GOLDEN_TAP_BONUS : 1;
+  const flat = state.tapPower * goldenTap * globalMultiplier(state, nowMs);
+  const share = computeGps(state, nowMs) * tapGpsSeconds(state);
+  return flat + share;
 }
 
 export const BASE_OFFLINE_CAP_HOURS = 8;

@@ -60,7 +60,12 @@ export default function SlimeDetailScreen() {
 
   return (
     <Backdrop def={backdrop}>
-      <Stack.Screen options={{ title: def.name, headerTransparent: true, headerTintColor: '#fff' }} />
+      <Stack.Screen options={{
+          title: def.name,
+          headerTransparent: true,
+          headerTintColor: '#fff',
+          headerBackTitle: 'Back',
+        }} />
       <SafeAreaView style={styles.fill} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Portrait. Tapping wakes it up - purely expressive, no game effect. */}
@@ -228,6 +233,8 @@ const styles = StyleSheet.create({
   },
   statValue: { color: theme.textPrimary, fontSize: 17, fontWeight: '700', marginTop: 2 },
   action: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentBlue,
     borderRadius: 14,
     paddingVertical: 13,
@@ -236,6 +243,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   actionAlt: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentGold,
     borderRadius: 14,
     paddingVertical: 13,

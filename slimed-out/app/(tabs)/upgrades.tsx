@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GameScreen } from '@/src/components/GameScreen';
+import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { globalMilestoneMultiplier, totalSlimesOwned } from '@/src/game/economy';
 import { useGameStore } from '@/src/game/store';
 import { TAP_UPGRADES } from '@/src/game/upgradeData';
@@ -8,6 +9,7 @@ import { theme } from '@/src/theme';
 import { formatNumber } from '@/src/utils/format';
 
 export default function UpgradesScreen() {
+  const bottomPad = useTabContentPadding();
   const state = useGameStore();
   const buyTapUpgrade = useGameStore((s) => s.buyTapUpgrade);
 
@@ -17,7 +19,7 @@ export default function UpgradesScreen() {
 
   return (
     <GameScreen title="Upgrades">
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLine}>Tap power: +{formatNumber(state.tapPower)} goo/tap</Text>
           <Text style={styles.summaryLine}>
@@ -63,6 +65,8 @@ export default function UpgradesScreen() {
                   style={[styles.buyButton, !canAfford && styles.buyButtonDisabled]}
                   disabled={!canAfford}
                   onPress={() => buyTapUpgrade(u.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Buy ${u.name} for ${formatNumber(u.cost)} goo`}
                 >
                   <Text style={styles.buyButtonText}>Buy for {formatNumber(u.cost)} goo</Text>
                 </Pressable>
@@ -109,6 +113,8 @@ const styles = StyleSheet.create({
   name: { color: theme.textPrimary, fontSize: 15, fontWeight: '700' },
   desc: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   buyButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentBlue,
     borderRadius: 12,
     paddingVertical: 10,

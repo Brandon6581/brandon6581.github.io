@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { GameScreen } from '@/src/components/GameScreen';
+import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import {
   costForNextSlime,
   costForSlimeUpgrade,
@@ -18,6 +19,7 @@ import { theme } from '@/src/theme';
 import { formatGps, formatNumber } from '@/src/utils/format';
 
 export default function SlimesScreen() {
+  const bottomPad = useTabContentPadding();
   const state = useGameStore();
   const buySlime = useGameStore((s) => s.buySlime);
   const buySlimeUpgrade = useGameStore((s) => s.buySlimeUpgrade);
@@ -25,7 +27,7 @@ export default function SlimesScreen() {
 
   return (
     <GameScreen title="Your Slimes">
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
         {SLIMES.map((def) => {
           const unlocked = isSlimeUnlocked(def, state);
           const owned = state.slimes[def.id] ?? { count: 0, upgradeLevels: 0 };
@@ -57,6 +59,8 @@ export default function SlimesScreen() {
               <Pressable
                 style={styles.cardHeader}
                 onPress={() => router.push({ pathname: '/slime/[id]', params: { id: def.id } })}
+                accessibilityRole="button"
+                accessibilityLabel={`Open the ${def.name} character card`}
               >
                 <View pointerEvents="none">
                   <SlimeSprite
@@ -84,6 +88,8 @@ export default function SlimesScreen() {
                 style={[styles.buyButton, !canAfford && styles.buyButtonDisabled]}
                 disabled={!canAfford}
                 onPress={() => buySlime(def.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Buy one ${def.name} for ${formatNumber(nextCost)} goo`}
               >
                 <Text style={styles.buyButtonText}>Buy for {formatNumber(nextCost)} goo</Text>
               </Pressable>
@@ -147,12 +153,16 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { color: theme.textSecondary, fontSize: 13, fontWeight: '600' },
   buyButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentBlue,
     borderRadius: 12,
     paddingVertical: 10,
     alignItems: 'center',
   },
   upgradeButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     backgroundColor: theme.accentGold,
     borderRadius: 12,
     paddingVertical: 10,

@@ -24,7 +24,7 @@ export const SLIME_SKINS: SlimeSkinDef[] = [
     slimeId: 'basic',
     name: 'Golden Slime',
     blurb:
-      'A rare golden variant of your very first slime. Turns up on its own now and then - or grab it here if you missed one.',
+      'A rare golden variant of your very first slime. Owning it grants +10% production and +25% tap power. Turns up on its own now and then - or grab it here if you missed one.',
     look: { body: ['#FFE08A', '#C98A1E'], accent: '#FFF6D0', topper: 'crown' },
     findable: true,
   },

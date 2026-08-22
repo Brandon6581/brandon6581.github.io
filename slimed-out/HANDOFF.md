@@ -103,6 +103,11 @@ app/(tabs)/              five screens, Expo Router file-based tabs
   settings.tsx           backdrop picker, restore, reset
 app/slime/[id].tsx       character card: portrait, lore, stats
 
+src/startup/             first-run flow, shown above the navigator
+  StartupGate.tsx        studio splash -> onboarding -> game
+  BrandSplash.tsx        Norseth Enterprises card
+  Onboarding.tsx         welcome, free naming, how to play
+
 src/art/                 — all rendering is code-drawn SVG, no bitmaps —
   slimeLook.ts           topper + eye-state types, palette shape
   SlimeSprite.tsx        the painterly slime renderer
@@ -244,6 +249,10 @@ reach for:
 | `unlockAtLifetimeGoo` | `slimeData.ts` | 0 → 1T | When each slime appears. Lower these to shorten the early game. |
 | `BASE_OFFLINE_CAP_HOURS` | `economy.ts` | 8 | Max offline accrual window. |
 | `OFFLINE_EARNINGS_RATE` | `economy.ts` | 0.5 | Offline rate vs. active play. |
+| `TAP_BASE_GPS_SECONDS` | `economy.ts` | 0.05 | Seconds of production a tap is worth at baseline. |
+| `TAP_GPS_SECONDS_PER_UPGRADE` | `economy.ts` | 0.02 | Added per tap upgrade owned. |
+| `GOLDEN_PRODUCTION_BONUS` | `economy.ts` | 0.10 | Standing bonus for owning the golden variant. |
+| `GOLDEN_TAP_BONUS` | `economy.ts` | 0.25 | Tap bonus for owning the golden variant. |
 | `firstAdMinLifetimeGoo` | `adService.ts` | 2,500 | Progress gate before any ad can show. |
 | `firstAdMinSessionMs` | `adService.ts` | 4 min | Time gate before the first ad. |
 | `minIntervalMs` | `adService.ts` | 4 min | Floor between any two ads. |
@@ -307,6 +316,18 @@ matching item is owned, so the gate holds even if UI is wired up wrong. Names ar
 trimmed, collapsed, and capped at 24 characters. `resetProgress` deliberately keeps
 entitlements, skins, and names - wiping progress should not confiscate purchases.
 
+### Why tapping scales off production
+
+Flat tap power cannot keep up with an idle curve. With every tap upgrade bought,
+a tap was worth about **0.15 seconds** of mid-game passive income - so tapping
+read as doing nothing even though it was adding goo. That was reported as a bug
+("goo does not generate while tapping"); it was really a scaling problem.
+
+Each tap is now `flat tap power + (current production x tapGpsSeconds)`. The
+share grows with tap upgrades owned, so active play stays meaningful at every
+tier **and scales itself as slimes are added** - there is no tap table to
+re-tune when the roster grows.
+
 ### The rare variant
 
 The Golden Slime can turn up on its own: a 1-in-1500 chance per tap, after 150
@@ -329,7 +350,7 @@ It also means none of it is real yet.
 | Restore purchases | **Mock** | Returns empty — the mock never left the device. |
 | Receipt validation | **Missing** | Server-side verification before granting entitlements. |
 | Bundle IDs, icons | **Placeholder** | `com.example.slimedout` and stock Expo art in `app.json`. |
-| Gift a Friend | **Blocked** | Needs player accounts and a server. Shown as Coming Soon; not a store product. |
+| Gift a Friend | **Deferred** | Shown as Coming Soon; not a store product. Needs player accounts and a server before it can work. |
 
 ### Checklist
 
@@ -483,6 +504,9 @@ Be precise about this, because it shapes where to look first if something breaks
 | Shop purchases: identity, skins, boost, bundle | Verified in browser |
 | Timed boost raises live output (6/s → 12/s) | Verified in browser |
 | Coming Soon rows are not purchasable | Verified in browser |
+| Tapping adds goo (fresh and mid-game saves) | Verified in browser |
+| Last roster item + shop footnote clear the tab bar | Verified in browser |
+| Splash -> onboarding -> named farm applied | Verified in browser |
 | Dev mode: code on/off, unlock-all, revert | Verified in browser |
 | Dev mode absent from production bundles (iOS + Android) | Verified — 0 markers |
 | check:no-dev-mode fails on a weakened gate | Verified |

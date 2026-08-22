@@ -23,7 +23,7 @@ export function OfflineEarningsModal({
               <Text style={styles.bold}>{formatNumber(result.gooEarned)} goo</Text>.
             </Text>
           )}
-          <Pressable style={styles.button} onPress={onClose}>
+          <Pressable style={styles.button} onPress={onClose} accessibilityRole="button">
             <Text style={styles.buttonText}>Nice!</Text>
           </Pressable>
         </View>

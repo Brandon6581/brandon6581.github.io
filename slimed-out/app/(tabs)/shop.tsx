@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { GameScreen } from '@/src/components/GameScreen';
+import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { useIAP } from '@/src/components/IAPProvider';
 import {
   CATEGORY_BLURBS,
@@ -21,6 +22,7 @@ import { theme } from '@/src/theme';
 import { formatNumber } from '@/src/utils/format';
 
 export default function ShopScreen() {
+  const bottomPad = useTabContentPadding();
   const state = useGameStore();
   const noAdsPurchased = adsRemoved(state);
   const { buy } = useIAP();
@@ -36,7 +38,7 @@ export default function ShopScreen() {
 
   return (
     <GameScreen title="Shop">
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
         <Text style={styles.blurb}>
           Every upgrade in the game can be earned by playing. Nothing here is required - it is
           for making the place yours, saving a little time, and filling out a collection.
@@ -150,7 +152,13 @@ function ShopRow({
 
 function BuyButton({ label, busy, onPress }: { label: string; busy: boolean; onPress: () => void }) {
   return (
-    <Pressable style={styles.buyButton} disabled={busy} onPress={onPress}>
+    <Pressable
+      style={styles.buyButton}
+      disabled={busy}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Purchase for ${label}`}
+    >
       <Text style={styles.buyButtonText}>{label}</Text>
     </Pressable>
   );
@@ -193,6 +201,8 @@ const styles = StyleSheet.create({
   bundleLine: { color: theme.accentGold, fontSize: 11, fontWeight: '700', marginTop: 5 },
   note: { color: theme.textMuted, fontSize: 11, fontStyle: 'italic', marginTop: 5 },
   buyButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     alignSelf: 'flex-start',
     backgroundColor: theme.accentGold,
     borderRadius: 12,

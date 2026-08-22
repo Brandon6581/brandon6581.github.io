@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { AdGateProvider } from '@/src/components/AdGateProvider';
 import { IAPProvider } from '@/src/components/IAPProvider';
 import { OfflineEarningsModal } from '@/src/components/OfflineEarningsModal';
+import { StartupGate } from '@/src/startup/StartupGate';
 import { useGameLoop } from '@/src/game/useGameLoop';
 import { OfflineResult } from '@/src/game/types';
 
@@ -40,11 +41,14 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme}>
       <IAPProvider>
         <AdGateProvider>
+          <StartupGate>
           <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            {/* title doubles as the back-button label on pushed screens. */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Back' }} />
             <Stack.Screen name="+not-found" />
           </Stack>
           <OfflineEarningsModal result={offlineResult} onClose={() => setOfflineResult(null)} />
+          </StartupGate>
         </AdGateProvider>
       </IAPProvider>
       <StatusBar style="light" />
