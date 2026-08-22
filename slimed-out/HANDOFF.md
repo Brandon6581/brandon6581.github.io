@@ -183,8 +183,13 @@ renders them. `Mossy Grove` is the free default.
 
 `unlockedBy` is an add-on product id, or `null` for free. Starlight is deliberately
 just one option among several rather than the only alternative to a blank screen.
-Players choose in Settings; `resolveBackdrop()` falls back to the free default if a
-saved id is unknown or no longer owned.
+`resolveBackdrop()` falls back to the free default if a saved id is unknown or no
+longer owned.
+
+**The picker lives in Settings, and stays there.** That is a decided call, not an
+accident of where it was easiest to put. Backdrops are a display preference, so
+they sit with the other preferences; the Shop stays a place to buy things. A later
+shop content pass should not relocate it.
 
 **To add a backdrop:** one entry in `BACKDROPS`. Add a new `shape` only if none of
 the four existing silhouettes fit.
@@ -256,6 +261,10 @@ optional accelerators. Nothing is paywalled.
 
 Product IDs for the add-ons are the `id` fields in `addOnData.ts` — they must match what
 you create in App Store Connect and the Play Console exactly.
+
+The current add-on list is a **placeholder set** pending a content pass once the slime
+roster is locked. Don't invest in reworking those items yet. When that pass happens,
+leave the backdrop picker in Settings (see [Art system](#art-system)).
 
 ---
 
