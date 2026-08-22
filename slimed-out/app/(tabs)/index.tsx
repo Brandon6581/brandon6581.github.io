@@ -1,18 +1,44 @@
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { SlimeSprite } from '@/src/art/SlimeSprite';
+import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
 import { GameScreen } from '@/src/components/GameScreen';
-import { SLIMES } from '@/src/game/slimeData';
+import { SLIMES, SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
 import { formatNumber } from '@/src/utils/format';
 
+/**
+ * ============================================================================
+ * TAP ARCHITECTURE - read before editing this screen.
+ * ============================================================================
+ * The tap stage is two sibling layers that never overlap in responsibility:
+ *
+ *   Layer 1 (sprite)  Animated.View with `pointerEvents="none"`. Purely
+ *                     decorative. It moves, squishes, and breathes, and it can
+ *                     never receive or swallow a touch.
+ *
+ *   Layer 2 (target)  A plain Pressable filling the stage, with no children,
+ *                     no transform, and only `onPress`. It is the sole thing
+ *                     the player actually touches.
+ *
+ * An earlier build made the animated sprite itself the interactive node. The
+ * gesture responder then treated finger movement as a drag on the sprite and
+ * ate the press, so taps silently stopped producing goo. Keeping animation and
+ * gesture handling on separate nodes is what prevents that: never attach a
+ * gesture, responder, or Pressable to the animated sprite, and never animate
+ * the touch target.
+ * ============================================================================
+ */
+
 interface Floater {
   id: number;
   value: number;
+  x: number;
   anim: Animated.Value;
 }
 
@@ -23,7 +49,14 @@ export default function HomeScreen() {
   const totalTaps = useGameStore((s) => s.totalTaps);
   const slimes = useGameStore((s) => s.slimes);
   const { maybeShowAd } = useAdGate();
-  const scale = useRef(new Animated.Value(1)).current;
+  const router = useRouter();
+
+  // Two independent drivers so a tap reaction can never interrupt the idle
+  // loop (and vice versa) - they are composed, not shared.
+  const bob = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0)).current;
+
+  const { eyes, rouse } = useSlimeEyes();
   const [floaters, setFloaters] = useState<Floater[]>([]);
 
   useFocusEffect(
@@ -34,68 +67,128 @@ export default function HomeScreen() {
     }, [maybeShowAd])
   );
 
-  const handleTap = () => {
+  // Idle: a slow breathing bob that runs forever, untouched by input.
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, {
+          toValue: 1,
+          duration: 1900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bob, {
+          toValue: 0,
+          duration: 1900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [bob]);
+
+  const handleTap = useCallback(() => {
     const value = tap();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    rouse();
 
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.92, duration: 60, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 4 }),
-    ]).start();
+    pop.setValue(1);
+    Animated.spring(pop, {
+      toValue: 0,
+      friction: 4.5,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
 
     const anim = new Animated.Value(0);
     const id = floaterId++;
-    setFloaters((f) => [...f, { id, value, anim }]);
-    Animated.timing(anim, { toValue: 1, duration: 700, useNativeDriver: true }).start(() => {
-      setFloaters((f) => f.filter((x) => x.id !== id));
-    });
-  };
+    const x = 20 + Math.random() * 60;
+    setFloaters((f) => [...f, { id, value, x, anim }]);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 850,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => setFloaters((f) => f.filter((x2) => x2.id !== id)));
+  }, [tap, rouse, pop]);
+
+  const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
+  const squishX = pop.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+  const squishY = pop.interpolate({ inputRange: [0, 1], outputRange: [1, 0.86] });
 
   const ownedSummary = SLIMES.filter((s) => (slimes[s.id]?.count ?? 0) > 0);
+  const heroLook = SLIME_BY_ID.basic.look;
 
   return (
     <GameScreen title="Slimed Out!">
-      <View style={styles.tapArea}>
-        {floaters.map((f) => (
-          <Animated.Text
-            key={f.id}
-            style={[
-              styles.floater,
-              {
-                opacity: f.anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-                transform: [
-                  {
-                    translateY: f.anim.interpolate({ inputRange: [0, 1], outputRange: [0, -70] }),
-                  },
-                ],
-              },
-            ]}
-          >
-            +{formatNumber(f.value)}
-          </Animated.Text>
-        ))}
-        <Pressable onPress={handleTap} hitSlop={20}>
-          <Animated.View style={[styles.blob, { transform: [{ scale }] }]}>
-            <Text style={styles.blobEmoji}>🟢</Text>
-          </Animated.View>
-        </Pressable>
-        <Text style={styles.hint}>Tap the slime to make goo</Text>
-        <Text style={styles.tapCount}>{formatNumber(totalTaps)} taps total</Text>
+      <View style={styles.stage}>
+        {/* ---- Layer 1: decorative sprite. Never interactive. ---- */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.spriteLayer,
+            { transform: [{ translateY: bobY }, { scaleX: squishX }, { scaleY: squishY }] },
+          ]}
+        >
+          <SlimeSprite look={heroLook} eyes={eyes} size={210} seed="basic" />
+        </Animated.View>
+
+        {/* ---- Floating goo numbers. Also decorative. ---- */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {floaters.map((f) => (
+            <Animated.Text
+              key={f.id}
+              style={[
+                styles.floater,
+                {
+                  left: `${f.x}%`,
+                  opacity: f.anim.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.9, 0] }),
+                  transform: [
+                    { translateY: f.anim.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
+                  ],
+                },
+              ]}
+            >
+              +{formatNumber(f.value)}
+            </Animated.Text>
+          ))}
+        </View>
+
+        {/* ---- Layer 2: the only interactive node. Never animated. ---- */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleTap}
+          accessibilityRole="button"
+          accessibilityLabel="Tap the slime to make goo"
+        />
       </View>
+
+      <Text style={styles.hint}>Tap the slime to make goo</Text>
+      <Text style={styles.tapCount}>{formatNumber(totalTaps)} taps total</Text>
 
       <ScrollView contentContainerStyle={styles.summary} showsVerticalScrollIndicator={false}>
         <Text style={styles.summaryTitle}>Your collection</Text>
         {ownedSummary.length === 0 ? (
-          <Text style={styles.empty}>No slimes yet - visit the Slimes tab once you have some goo!</Text>
+          <Text style={styles.empty}>
+            No slimes yet - visit the Slimes tab once you have some goo!
+          </Text>
         ) : (
           ownedSummary.map((def) => {
             const owned = slimes[def.id];
             return (
-              <View key={def.id} style={styles.row}>
-                <Text style={styles.rowEmoji}>{def.emoji}</Text>
+              <Pressable
+                key={def.id}
+                style={styles.row}
+                onPress={() => router.push({ pathname: '/slime/[id]', params: { id: def.id } })}
+              >
+                <View pointerEvents="none">
+                  <SlimeSprite look={def.look} eyes="asleep" size={38} seed={def.id} />
+                </View>
                 <Text style={styles.rowName}>{def.name}</Text>
                 <Text style={styles.rowCount}>x{formatNumber(owned.count)}</Text>
-              </View>
+              </Pressable>
             );
           })
         )}
@@ -105,42 +198,42 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  tapArea: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  blob: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: theme.card,
-    borderWidth: 3,
-    borderColor: theme.accentGreen,
+  stage: {
+    height: 250,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  blobEmoji: {
-    fontSize: 96,
+  spriteLayer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   floater: {
+    // Sits mid-stage so the rise finishes inside the stage instead of
+    // travelling up over the goo counter in the header.
     position: 'absolute',
-    top: 20,
-    color: theme.accentGreen,
-    fontSize: 22,
+    top: 140,
+    color: '#EAFBD2',
+    fontSize: 24,
     fontWeight: '800',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   hint: {
-    marginTop: 16,
+    marginTop: 4,
     color: theme.textSecondary,
     fontSize: 13,
+    textAlign: 'center',
   },
   tapCount: {
-    marginTop: 4,
+    marginTop: 2,
     color: theme.textMuted,
     fontSize: 12,
+    textAlign: 'center',
   },
   summary: {
     paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 40,
     gap: 8,
   },
@@ -159,13 +252,14 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.card,
+    backgroundColor: 'rgba(20,26,22,0.55)',
     borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     gap: 10,
   },
-  rowEmoji: { fontSize: 22 },
   rowName: { flex: 1, color: theme.textPrimary, fontSize: 14, fontWeight: '600' },
   rowCount: { color: theme.accentGreen, fontSize: 14, fontWeight: '700' },
 });

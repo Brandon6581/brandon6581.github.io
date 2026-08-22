@@ -11,6 +11,14 @@ import { OfflineEarningsModal } from '@/src/components/OfflineEarningsModal';
 import { useGameLoop } from '@/src/game/useGameLoop';
 import { OfflineResult } from '@/src/game/types';
 
+// React Navigation's DarkTheme paints scenes near-black. The illustrated
+// backdrop covers that, but matching it here means any transient gap (screen
+// transitions, a slow first frame) shows deep moss rather than a black flash.
+const navTheme = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: '#122A22', card: '#101E19' },
+};
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -29,7 +37,7 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={DarkTheme}>
+    <ThemeProvider value={navTheme}>
       <IAPProvider>
         <AdGateProvider>
           <Stack>

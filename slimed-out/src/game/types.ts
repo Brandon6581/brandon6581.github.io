@@ -1,5 +1,7 @@
 // Core data shapes for Slimed Out!
 
+import { SlimeLook } from '@/src/art/slimeLook';
+
 export interface SlimeDef {
   id: string;
   name: string;
@@ -15,8 +17,8 @@ export interface SlimeDef {
   baseGps: number;
   /** Lifetime goo earned required before this slime appears in the shop. */
   unlockAtLifetimeGoo: number;
-  emoji: string;
-  colors: [string, string];
+  /** Palette and topper driving the painterly sprite. */
+  look: SlimeLook;
 }
 
 /** Owned-count milestones at which a slime's per-unit production upgrade becomes available. */
@@ -82,4 +84,6 @@ export interface GameState {
   createdAt: number;
   lastAdShownAt: number;
   soundEnabled: boolean;
+  /** Chosen backdrop variant id; falls back to the free default when unset. */
+  selectedBackdropId: string;
 }

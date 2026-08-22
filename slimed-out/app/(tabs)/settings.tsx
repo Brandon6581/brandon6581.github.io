@@ -1,9 +1,9 @@
-import Constants from 'expo-constants';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { useIAP } from '@/src/components/IAPProvider';
 import { GameScreen } from '@/src/components/GameScreen';
+import { useIAP } from '@/src/components/IAPProvider';
+import { BACKDROPS, isBackdropUnlocked } from '@/src/game/backgroundData';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
 
@@ -13,6 +13,8 @@ export default function SettingsScreen() {
   const resetProgress = useGameStore((s) => s.resetProgress);
   const noAdsPurchased = useGameStore((s) => s.noAdsPurchased);
   const purchasedAddOns = useGameStore((s) => s.purchasedAddOns);
+  const selectedBackdropId = useGameStore((s) => s.selectedBackdropId);
+  const setBackdrop = useGameStore((s) => s.setBackdrop);
   const { restore } = useIAP();
   const [restoring, setRestoring] = useState(false);
 
@@ -24,9 +26,7 @@ export default function SettingsScreen() {
     setRestoring(false);
     Alert.alert(
       'Restore Purchases',
-      count > 0
-        ? `Restored ${count} purchase(s).`
-        : 'No previous purchases found on this device.'
+      count > 0 ? `Restored ${count} purchase(s).` : 'No previous purchases found on this device.'
     );
   };
 
@@ -46,9 +46,42 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {hasFoundersBadge && (
           <View style={styles.badgeCard}>
-            <Text style={styles.badgeText}>🎖️ Founder - thanks for supporting Slimed Out!</Text>
+            <Text style={styles.badgeText}>Founder - thanks for supporting Slimed Out!</Text>
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>Backdrop</Text>
+        <View style={styles.backdropGrid}>
+          {BACKDROPS.map((b) => {
+            const unlocked = isBackdropUnlocked(b, purchasedAddOns);
+            const selected = b.id === selectedBackdropId;
+            return (
+              <Pressable
+                key={b.id}
+                style={[
+                  styles.backdropCard,
+                  selected && styles.backdropCardSelected,
+                  !unlocked && styles.backdropCardLocked,
+                ]}
+                disabled={!unlocked}
+                onPress={() => setBackdrop(b.id)}
+              >
+                <View style={styles.swatchRow}>
+                  <View style={[styles.swatch, { backgroundColor: b.sky[0] }]} />
+                  <View style={[styles.swatch, { backgroundColor: b.sky[1] }]} />
+                  <View style={[styles.swatch, { backgroundColor: b.glow.color }]} />
+                </View>
+                <Text style={styles.backdropName}>{b.name}</Text>
+                <Text style={styles.backdropBlurb} numberOfLines={2}>
+                  {b.blurb}
+                </Text>
+                <Text style={[styles.backdropState, selected && styles.backdropStateOn]}>
+                  {selected ? 'Selected' : unlocked ? 'Free' : 'In the shop'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <View style={styles.card}>
           <View style={styles.rowBetween}>
@@ -73,17 +106,6 @@ export default function SettingsScreen() {
         <Pressable style={[styles.actionButton, styles.dangerButton]} onPress={handleReset}>
           <Text style={styles.actionButtonText}>Reset Progress</Text>
         </Pressable>
-
-        <View style={styles.card}>
-          <Text style={styles.aboutTitle}>About</Text>
-          <Text style={styles.aboutBody}>
-            Slimed Out! v{Constants.expoConfig?.version ?? '1.0.0'}
-            {'\n\n'}
-            A few slimes in the collection take gentle inspiration from European folklore -
-            golems, selkies, banshees, will-o&apos;-the-wisps, and trolls - written as respectful
-            nods to those stories rather than caricatures of any culture.
-          </Text>
-        </View>
       </ScrollView>
     </GameScreen>
   );
@@ -97,12 +119,45 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   badgeText: { color: theme.accentGold, fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  sectionTitle: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  backdropGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  backdropCard: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    backgroundColor: 'rgba(18,24,20,0.62)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 12,
+    gap: 4,
+  },
+  backdropCardSelected: { borderColor: theme.accentGreen, borderWidth: 2 },
+  backdropCardLocked: { opacity: 0.5 },
+  swatchRow: { flexDirection: 'row', gap: 4, marginBottom: 4 },
+  swatch: { width: 18, height: 18, borderRadius: 5 },
+  backdropName: { color: theme.textPrimary, fontSize: 14, fontWeight: '700' },
+  backdropBlurb: { color: theme.textMuted, fontSize: 11, lineHeight: 15 },
+  backdropState: {
+    color: theme.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  backdropStateOn: { color: theme.accentGreen },
   card: {
-    backgroundColor: theme.card,
+    backgroundColor: 'rgba(18,24,20,0.62)',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: theme.cardBorder,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   label: { color: theme.textPrimary, fontSize: 15, fontWeight: '600' },
@@ -115,6 +170,4 @@ const styles = StyleSheet.create({
   },
   dangerButton: { backgroundColor: theme.danger },
   actionButtonText: { color: 'white', fontWeight: '700', fontSize: 14 },
-  aboutTitle: { color: theme.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 8 },
-  aboutBody: { color: theme.textSecondary, fontSize: 13, lineHeight: 19 },
 });

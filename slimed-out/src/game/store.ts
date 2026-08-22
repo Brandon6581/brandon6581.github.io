@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { ADD_ON_BY_ID } from './addOnData';
+import { DEFAULT_BACKDROP_ID } from './backgroundData';
 import {
   computeGps,
   computeOfflineEarnings,
@@ -38,6 +39,7 @@ function initialState(): GameState {
     createdAt: t,
     lastAdShownAt: 0,
     soundEnabled: true,
+    selectedBackdropId: DEFAULT_BACKDROP_ID,
   };
 }
 
@@ -57,6 +59,7 @@ interface GameActions {
   claimOfflineEarnings: () => OfflineResult | null;
   markAdShown: () => void;
   toggleSound: () => void;
+  setBackdrop: (id: string) => void;
   resetProgress: () => void;
   touchSave: () => void;
 }
@@ -164,6 +167,8 @@ export const useGameStore = create<GameStore>()(
 
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
 
+      setBackdrop: (id: string) => set({ selectedBackdropId: id }),
+
       resetProgress: () => set({ ...initialState() }),
 
       touchSave: () => set({ lastSavedAt: now() }),
@@ -171,7 +176,17 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      // v1 saves predate backdrop selection. Persist merges shallowly, so a
+      // missing key would already fall back to the initial value - this just
+      // makes the intent explicit and gives later migrations a place to live.
+      migrate: (persisted, fromVersion) => {
+        const state = persisted as Partial<GameState>;
+        if (fromVersion < 2 && !state.selectedBackdropId) {
+          return { ...state, selectedBackdropId: DEFAULT_BACKDROP_ID };
+        }
+        return state;
+      },
     }
   )
 );

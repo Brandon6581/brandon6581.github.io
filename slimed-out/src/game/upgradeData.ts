@@ -3,6 +3,10 @@ import { TapUpgradeDef } from './types';
 // Every upgrade below is bought with in-game goo. There is nothing in this
 // list, or anywhere in the free upgrade tree, that requires real money -
 // paid add-ons (see addOnData.ts) only ever offer small, optional extras.
+//
+// Twenty rungs rather than ten, with the extra ones concentrated early, so a
+// new player always has a next purchase in sight instead of grinding between
+// widely-spaced tiers. Existing ids are preserved so saved purchases survive.
 export const TAP_UPGRADES: TapUpgradeDef[] = [
   {
     id: 'tap_1',
@@ -14,6 +18,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     emoji: '👆',
   },
   {
+    id: 'tap_1b',
+    name: 'Firm Press',
+    description: '+1 goo per tap.',
+    cost: 160,
+    addPower: 1,
+    unlockAtLifetimeGoo: 100,
+    emoji: '🫲',
+  },
+  {
     id: 'tap_2',
     name: 'Two-Finger Tap',
     description: '+2 goo per tap.',
@@ -21,6 +34,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     addPower: 2,
     unlockAtLifetimeGoo: 300,
     emoji: '✌️',
+  },
+  {
+    id: 'tap_2b',
+    name: 'Wrist Warmup',
+    description: '+3 goo per tap.',
+    cost: 1_600,
+    addPower: 3,
+    unlockAtLifetimeGoo: 1_100,
+    emoji: '🌀',
   },
   {
     id: 'tap_3',
@@ -32,6 +54,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     emoji: '🧤',
   },
   {
+    id: 'tap_3b',
+    name: 'Grip Powder',
+    description: '+6 goo per tap.',
+    cost: 17_000,
+    addPower: 6,
+    unlockAtLifetimeGoo: 11_000,
+    emoji: '🧂',
+  },
+  {
     id: 'tap_4',
     name: 'Bouncy Palm',
     description: '+9 goo per tap.',
@@ -39,6 +70,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     addPower: 9,
     unlockAtLifetimeGoo: 35_000,
     emoji: '🫳',
+  },
+  {
+    id: 'tap_4b',
+    name: 'Percussive Technique',
+    description: '+13 goo per tap.',
+    cost: 200_000,
+    addPower: 13,
+    unlockAtLifetimeGoo: 130_000,
+    emoji: '🥁',
   },
   {
     id: 'tap_5',
@@ -50,6 +90,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     emoji: '👏',
   },
   {
+    id: 'tap_5b',
+    name: 'Metronome Drills',
+    description: '+30 goo per tap.',
+    cost: 2_300_000,
+    addPower: 30,
+    unlockAtLifetimeGoo: 1_500_000,
+    emoji: '⏱️',
+  },
+  {
     id: 'tap_6',
     name: 'Reinforced Screen Protector',
     description: '+45 goo per tap.',
@@ -57,6 +106,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     addPower: 45,
     unlockAtLifetimeGoo: 5_000_000,
     emoji: '📱',
+  },
+  {
+    id: 'tap_6b',
+    name: 'Shock-Absorbing Case',
+    description: '+68 goo per tap.',
+    cost: 27_000_000,
+    addPower: 68,
+    unlockAtLifetimeGoo: 18_000_000,
+    emoji: '🛡️',
   },
   {
     id: 'tap_7',
@@ -68,6 +126,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     emoji: '🥊',
   },
   {
+    id: 'tap_7b',
+    name: 'Gargoyle Knuckles',
+    description: '+160 goo per tap.',
+    cost: 310_000_000,
+    addPower: 160,
+    unlockAtLifetimeGoo: 210_000_000,
+    emoji: '🗿',
+  },
+  {
     id: 'tap_8',
     name: 'Selkie-Blessed Fingertips',
     description: '+250 goo per tap.',
@@ -75,6 +142,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     addPower: 250,
     unlockAtLifetimeGoo: 700_000_000,
     emoji: '🫰',
+  },
+  {
+    id: 'tap_8b',
+    name: 'Tidewater Rhythm',
+    description: '+390 goo per tap.',
+    cost: 3_900_000_000,
+    addPower: 390,
+    unlockAtLifetimeGoo: 2_600_000_000,
+    emoji: '🌊',
   },
   {
     id: 'tap_9',
@@ -86,6 +162,15 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     emoji: '⚡',
   },
   {
+    id: 'tap_9b',
+    name: 'Sprite-Quick Hands',
+    description: '+950 goo per tap.',
+    cost: 170_000_000_000,
+    addPower: 950,
+    unlockAtLifetimeGoo: 115_000_000_000,
+    emoji: '🍃',
+  },
+  {
     id: 'tap_10',
     name: 'Cosmic Tap',
     description: '+1,500 goo per tap.',
@@ -93,5 +178,14 @@ export const TAP_UPGRADES: TapUpgradeDef[] = [
     addPower: 1_500,
     unlockAtLifetimeGoo: 1_200_000_000_000,
     emoji: '🌌',
+  },
+  {
+    id: 'tap_10b',
+    name: 'Astral Resonance',
+    description: '+2,400 goo per tap.',
+    cost: 24_000_000_000_000,
+    addPower: 2_400,
+    unlockAtLifetimeGoo: 16_000_000_000_000,
+    emoji: '✨',
   },
 ];

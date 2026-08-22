@@ -10,19 +10,23 @@ own, buy upgrades, and keep earning while the app is closed.
 
 ## Gameplay
 
-- **Tap** the Basic Slime on the Home tab to earn goo directly.
-- **Slimes** (Slimes tab) are idle producers. Each unlocks once you've earned
-  enough lifetime goo, costs more the more you own (a classic 1.15x-per-unit
-  curve), and has its own line of production-doubling upgrades at 1/5/10/25/
-  50/100/150/200 owned.
-- A handful of the later slimes (Golem, Selkie, Bog Wisp, Banshee, Troll) take
-  gentle inspiration from widely-known European folklore. They're written as
-  respectful nods to those legends, not caricatures of any culture - see the
-  "About" section on the Settings tab and the `originNote` field in
-  `src/game/slimeData.ts`.
-- **Upgrades** (Upgrades tab) are tap-power boosts, all bought with in-game
-  goo. Every total-slimes-owned milestone of 25 also grants a free +10%
-  global production bonus.
+- **Tap** the Basic Slime on the Home tab to earn goo directly. It dozes when
+  idle, wakes up when you tap it, and squishes on contact.
+- **Slimes** (Slimes tab) are idle producers - 22 of them. Each unlocks once
+  you've earned enough lifetime goo, costs more the more you own (a classic
+  1.15x-per-unit curve), and has its own line of production-doubling upgrades
+  at 1/5/10/25/50/100/150/200 owned. Tap any one for its character card:
+  portrait, lore, and live stats.
+- Several slimes (Golem, Selkie, Bog Wisp, Banshee, Troll, Kelpie, Brownie,
+  Sprite, Gnome, Gargoyle) take gentle inspiration from widely-known European
+  folklore. They're written as respectful nods to those legends, not
+  caricatures of any culture, and each names its source tradition on its
+  character card - see the `originNote` field in `src/game/slimeData.ts`.
+- **Upgrades** (Upgrades tab) are tap-power boosts - 20 of them, all bought
+  with in-game goo. Every total-slimes-owned milestone of 25 also grants a
+  free +10% global production bonus.
+- **Backdrops**: the game ships with three free illustrated scenes, picked in
+  Settings. A fourth arrives with the paid Starlight add-on.
 - **Offline progress**: closing the app doesn't stop your slimes. On the next
   launch (or when you background/foreground the app), you get a share of what
   they produced while you were away, capped at 8 hours by default (see

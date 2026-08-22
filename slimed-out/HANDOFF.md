@@ -8,8 +8,9 @@ are still standing in for the real thing.
 |---|---|
 | **Branch** | `claude/slimed-out-clicker-game-roymq3` |
 | **Project dir** | `slimed-out/` |
-| **Stack** | Expo SDK 54 · React Native 0.81.5 · React 19.1 · Zustand 5 |
+| **Stack** | Expo SDK 54 · React Native 0.81.5 · React 19.1 · Zustand 5 · react-native-svg 15 |
 | **State** | Playable end to end; ads and purchases are mocked |
+| **Content** | 22 slimes · 20 tap upgrades · 4 backdrops |
 
 ---
 
@@ -17,6 +18,7 @@ are still standing in for the real thing.
 
 - [Run it](#run-it)
 - [Code map](#code-map)
+- [Art system](#art-system)
 - [Game model](#game-model)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
@@ -93,17 +95,26 @@ retune the entire economy without opening a screen file.
 
 ```
 app/(tabs)/              five screens, Expo Router file-based tabs
-  index.tsx              tap screen + goo floaters
-  slimes.tsx             buy slimes, buy per-slime upgrades
+  index.tsx              tap screen — READ THE HEADER COMMENT
+  slimes.tsx             roster; links into character cards
   upgrades.tsx           tap-power tree, collection bonus
   shop.tsx               real-money storefront
-  settings.tsx           restore, reset, folklore note
+  settings.tsx           backdrop picker, restore, reset
+app/slime/[id].tsx       character card: portrait, lore, stats
+
+src/art/                 — all rendering is code-drawn SVG, no bitmaps —
+  slimeLook.ts           topper + eye-state types, palette shape
+  SlimeSprite.tsx        the painterly slime renderer
+  Toppers.tsx            12 topper variants (horns, fin, crown, ...)
+  Backdrop.tsx           illustrated scene renderer
+  useSlimeEyes.ts        asleep / roused / blink state machine
 
 src/game/                — pure logic, no UI —
   types.ts               shared shapes + upgrade milestones
-  slimeData.ts           11 slimes: cost, output, unlock gate
-  upgradeData.ts         10 free tap upgrades
+  slimeData.ts           22 slimes: cost, output, unlock gate, look
+  upgradeData.ts         20 free tap upgrades
   addOnData.ts           10 paid add-ons + their effects
+  backgroundData.ts      backdrop variants + unlock rules
   economy.ts             all formulas: cost, gps, offline
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
@@ -122,6 +133,61 @@ One Zustand store persisted to AsyncStorage under the key `slimed-out/save/v1`. 
 after every action, and `useGameLoop` stamps a save on background. The `version` field is
 there so you can add a migration when the save shape changes — bump it and supply a
 `migrate` function rather than silently breaking existing players.
+
+---
+
+## Art system
+
+Everything visual is **code-drawn SVG** (`react-native-svg`). There are no image
+assets to manage, so a new slime is a data entry, not an art pipeline.
+
+### Slimes
+
+Each slime shares one silhouette — a soft dome with a slightly drippy lower edge —
+and is told apart by a `look` in `slimeData.ts`:
+
+```ts
+look: { body: ['#8FE08A', '#3E9E77'], accent: '#CFF3B6', topper: 'none' }
+```
+
+- `body` is `[top, bottom]` of a diagonal gradient. Use **two different hues**, not
+  two shades of one — the blend is the whole point of the style.
+- `accent` tints the topper and the eye glow.
+- `topper` is one of 12 shapes in `Toppers.tsx`. Toppers render *behind* the body so
+  their bases tuck under the dome and read as growing out of the creature.
+
+The sprite layers, bottom to top: contact shadow → topper → gradient body → inner
+core glow → rim light → surface bubbles → specular gloss → outline → face. Bubbles
+are seeded from the slime id so they are stable across renders but differ per slime.
+
+**To add a slime:** append to `SLIMES` with a `look`. Nothing else needs touching.
+
+### Eye states
+
+`useSlimeEyes()` drives exactly three states off activity alone:
+
+| State | When |
+|---|---|
+| `asleep` | Resting — nothing has happened for ~2.6s. This is the default. |
+| `roused` | Woken by `rouse()`, i.e. the player tapped. Wide, with glints. |
+| `blink` | Brief closure, only while awake. |
+
+The hook is state only — it never touches layout or gestures, so it is safe to call
+from a decorative sprite layer.
+
+### Backdrops
+
+The app never shows a flat color. `backgroundData.ts` defines variants as data
+(sky gradient, glow position, three silhouette bands, mote style); `Backdrop.tsx`
+renders them. `Mossy Grove` is the free default.
+
+`unlockedBy` is an add-on product id, or `null` for free. Starlight is deliberately
+just one option among several rather than the only alternative to a blank screen.
+Players choose in Settings; `resolveBackdrop()` falls back to the free default if a
+saved id is unknown or no longer owned.
+
+**To add a backdrop:** one entry in `BACKDROPS`. Add a new `shape` only if none of
+the four existing silhouettes fit.
 
 ---
 
@@ -224,6 +290,29 @@ calls to implement. Read those before starting; they are more specific than this
 
 ## Known traps
 
+### Never put a gesture on the animated sprite
+
+The tap stage in `app/(tabs)/index.tsx` is **two sibling layers**, and they must
+stay separate:
+
+| Layer | What it is | Rule |
+|---|---|---|
+| Sprite | `Animated.View` with `pointerEvents="none"` | Moves and squishes. Can never receive a touch. |
+| Target | Plain `Pressable`, `absoluteFill`, no children, no transform, only `onPress` | The sole thing the player touches. Never animated. |
+
+An earlier build made the animated sprite itself the interactive node. The gesture
+responder then treated finger movement as a drag on the sprite and swallowed the
+press, so **taps silently stopped producing goo** — no error, no crash, the
+animation still played.
+
+So: never attach a `Pressable`, responder, or gesture to the animated sprite, and
+never animate the touch target. The idle bob and the tap squish also use two
+separate `Animated.Value`s so neither can interrupt the other.
+
+There is a regression test for this — it fires press-move-release with a few pixels
+of wobble (the exact gesture that used to break) and asserts every one still counts.
+If you restructure this screen, re-run that check.
+
 ### The zustand web bug — do not delete `metro.config.js`
 
 zustand's ESM build references `import.meta`. Metro bundles it as a classic script for web,
@@ -263,6 +352,8 @@ Be precise about this, because it shapes where to look first if something breaks
 | Clean clone + `npm ci` | Pass |
 | iOS bundle compiles (3.7 MB Hermes) | Pass |
 | Tapping, slime purchase, upgrades | Verified in browser |
+| Tap-not-drag regression (press-move-release) | Verified in browser — 5/5 registered |
+| Character cards, backdrop switching | Verified in browser |
 | Save persistence across reload | Verified in browser |
 | Shop purchase flow | Verified in browser |
 | Offline earnings math | Verified in browser |
