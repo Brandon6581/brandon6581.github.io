@@ -251,8 +251,7 @@ reach for:
 | `OFFLINE_EARNINGS_RATE` | `economy.ts` | 0.5 | Offline rate vs. active play. |
 | `TAP_BASE_GPS_SECONDS` | `economy.ts` | 0.05 | Seconds of production a tap is worth at baseline. |
 | `TAP_GPS_SECONDS_PER_UPGRADE` | `economy.ts` | 0.02 | Added per tap upgrade owned. |
-| `GOLDEN_PRODUCTION_BONUS` | `economy.ts` | 0.10 | Standing bonus for owning the golden variant. |
-| `GOLDEN_TAP_BONUS` | `economy.ts` | 0.25 | Tap bonus for owning the golden variant. |
+| `perk` on a skin | `skinData.ts` | golden: +10% / +25% | Standing production and tap bonus while the skin is owned. |
 | `firstAdMinLifetimeGoo` | `adService.ts` | 2,500 | Progress gate before any ad can show. |
 | `firstAdMinSessionMs` | `adService.ts` | 4 min | Time gate before the first ad. |
 | `minIntervalMs` | `adService.ts` | 4 min | Floor between any two ads. |
@@ -327,6 +326,19 @@ Each tap is now `flat tap power + (current production x tapGpsSeconds)`. The
 share grows with tap upgrades owned, so active play stays meaningful at every
 tier **and scales itself as slimes are added** - there is no tap table to
 re-tune when the roster grows.
+
+### Collectible perks
+
+A skin may carry a `perk` (`{ production, tap }`) granting a standing bonus while
+it is in the collection. `economy.ts` sums perks across owned skins, so adding
+another perk skin later needs no economy change.
+
+`describePerk()` builds the player-facing sentence from those same numbers,
+phrased as an ownership benefit rather than a bare stat line — *"While the Golden
+Slime is in your collection, you gain +10% goo production and +25% tap power."*
+It appears on the character card and on the discovery modal, and the shop blurb
+matches. Use it rather than writing percentages by hand, so the copy cannot drift
+from the values the economy actually applies.
 
 ### The rare variant
 

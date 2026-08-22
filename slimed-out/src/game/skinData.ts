@@ -7,6 +7,15 @@ import { SlimeLook } from '@/src/art/slimeLook';
  * show off. Owning a skin applies it automatically; there is no equip step,
  * because the collection is the point rather than loadout management.
  */
+/**
+ * A standing bonus granted for as long as the skin is in the collection.
+ * Expressed as fractions (0.1 = +10%).
+ */
+export interface SkinPerk {
+  production: number;
+  tap: number;
+}
+
 export interface SlimeSkinDef {
   id: string;
   /** Which slime this re-skins. */
@@ -16,6 +25,18 @@ export interface SlimeSkinDef {
   look: SlimeLook;
   /** True if it can also turn up during normal play, not only in the shop. */
   findable: boolean;
+  /** Standing bonus while owned. Most skins are purely cosmetic and omit this. */
+  perk?: SkinPerk;
+}
+
+/** One sentence describing a perk, framed as a collection-ownership benefit. */
+export function describePerk(skin: SlimeSkinDef): string | null {
+  if (!skin.perk) return null;
+  return (
+    `While the ${skin.name} is in your collection, you gain ` +
+    `+${Math.round(skin.perk.production * 100)}% goo production and ` +
+    `+${Math.round(skin.perk.tap * 100)}% tap power.`
+  );
 }
 
 export const SLIME_SKINS: SlimeSkinDef[] = [
@@ -24,9 +45,10 @@ export const SLIME_SKINS: SlimeSkinDef[] = [
     slimeId: 'basic',
     name: 'Golden Slime',
     blurb:
-      'A rare golden variant of your very first slime. Owning it grants +10% production and +25% tap power. Turns up on its own now and then - or grab it here if you missed one.',
+      'A rare golden variant of your very first slime. While it is in your collection you gain +10% goo production and +25% tap power. Turns up on its own now and then - or grab it here if you missed one.',
     look: { body: ['#FFE08A', '#C98A1E'], accent: '#FFF6D0', topper: 'crown' },
     findable: true,
+    perk: { production: 0.1, tap: 0.25 },
   },
   {
     id: 'skin_verdant_basic',

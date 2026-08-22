@@ -14,7 +14,7 @@ import {
   slimeUpgradeMultiplier,
 } from '@/src/game/economy';
 import { ownedItemIds, ownedSkinIds } from '@/src/game/entitlements';
-import { resolveLook } from '@/src/game/skinData';
+import { SKIN_BY_ID, describePerk, resolveLook } from '@/src/game/skinData';
 import { SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { SLIME_UPGRADE_MILESTONES } from '@/src/game/types';
@@ -58,6 +58,13 @@ export default function SlimeDetailScreen() {
   const upgrade = nextSlimeUpgrade(owned);
   const upgradeCost = upgrade ? costForSlimeUpgrade(def, upgrade.index) : null;
 
+  // If an owned skin is being shown for this slime and it carries a standing
+  // bonus, say so here - this is the screen players treat as the inventory.
+  const activeSkin = ownedSkinIds(state)
+    .map((id) => SKIN_BY_ID[id])
+    .find((skin) => skin && skin.slimeId === def.id);
+  const perkLine = activeSkin ? describePerk(activeSkin) : null;
+
   return (
     <Backdrop def={backdrop}>
       <Stack.Screen options={{
@@ -97,6 +104,13 @@ export default function SlimeDetailScreen() {
                 <View style={styles.loreCard}>
                   <Text style={styles.loreLabel}>Origin</Text>
                   <Text style={styles.loreText}>{def.originNote}</Text>
+                </View>
+              )}
+
+              {perkLine && (
+                <View style={styles.perkCard}>
+                  <Text style={styles.perkLabel}>Collection perk</Text>
+                  <Text style={styles.perkText}>{perkLine}</Text>
                 </View>
               )}
 
@@ -207,6 +221,24 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   loreText: { color: theme.textSecondary, fontSize: 13, lineHeight: 19, fontStyle: 'italic' },
+  perkCard: {
+    backgroundColor: 'rgba(245,196,81,0.12)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.accentGold,
+    padding: 14,
+    marginBottom: 18,
+    width: '100%',
+  },
+  perkLabel: {
+    color: theme.accentGold,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 5,
+  },
+  perkText: { color: theme.textPrimary, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

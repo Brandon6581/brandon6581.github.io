@@ -1,5 +1,5 @@
-import { ownedItemIds, ownsSkin } from './entitlements';
-import { GOLDEN_SKIN_ID } from './skinData';
+import { ownedItemIds, ownedSkinIds } from './entitlements';
+import { SKIN_BY_ID } from './skinData';
 import { SHOP_ITEM_BY_ID } from './shopData';
 import { SLIME_BY_ID, SLIMES } from './slimeData';
 import { GameState, OfflineResult, OwnedSlimeState, SLIME_UPGRADE_MILESTONES, SlimeDef } from './types';
@@ -40,19 +40,26 @@ export function shopGlobalMultiplier(state: GameState): number {
 }
 
 /**
- * Owning the rare golden variant is worth something beyond looks: a standing
- * production bonus and a bigger bonus to tapping.
+ * Collectibles can carry a standing bonus for as long as they are owned. The
+ * bonus lives on the skin definition (see skinData.ts), so adding another perk
+ * skin later needs no change here.
  */
-export const GOLDEN_PRODUCTION_BONUS = 0.1;
-export const GOLDEN_TAP_BONUS = 0.25;
-
-export function hasGolden(state: GameState): boolean {
-  return ownsSkin(state, GOLDEN_SKIN_ID);
+export function skinPerkMultipliers(state: GameState): { production: number; tap: number } {
+  let production = 1;
+  let tap = 1;
+  for (const id of ownedSkinIds(state)) {
+    const perk = SKIN_BY_ID[id]?.perk;
+    if (perk) {
+      production += perk.production;
+      tap += perk.tap;
+    }
+  }
+  return { production, tap };
 }
 
 /** Production multiplier contributed by owned collectibles. */
 export function skinGlobalMultiplier(state: GameState): number {
-  return hasGolden(state) ? 1 + GOLDEN_PRODUCTION_BONUS : 1;
+  return skinPerkMultipliers(state).production;
 }
 
 export function isBoostActive(state: GameState, nowMs: number = Date.now()): boolean {
@@ -118,8 +125,7 @@ export function tapGpsSeconds(state: GameState): number {
  * output. The golden variant adds a further bonus on the flat part.
  */
 export function computeTapValue(state: GameState, nowMs: number = Date.now()): number {
-  const goldenTap = hasGolden(state) ? 1 + GOLDEN_TAP_BONUS : 1;
-  const flat = state.tapPower * goldenTap * globalMultiplier(state, nowMs);
+  const flat = state.tapPower * skinPerkMultipliers(state).tap * globalMultiplier(state, nowMs);
   const share = computeGps(state, nowMs) * tapGpsSeconds(state);
   return flat + share;
 }

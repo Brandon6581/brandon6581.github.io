@@ -1,7 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SlimeSprite } from '@/src/art/SlimeSprite';
-import { SlimeSkinDef } from '@/src/game/skinData';
+import { SlimeSkinDef, describePerk } from '@/src/game/skinData';
 import { theme } from '@/src/theme';
 
 /** Celebrates stumbling on a rare variant during normal play. */
@@ -20,6 +20,7 @@ export function SkinFoundModal({ skin, onClose }: { skin: SlimeSkinDef | null; o
               <Text style={styles.blurb}>
                 It has joined your collection. Nothing to buy - you found this one.
               </Text>
+              {describePerk(skin) && <Text style={styles.perk}>{describePerk(skin)}</Text>}
             </>
           )}
           <Pressable style={styles.button} onPress={onClose} accessibilityRole="button">
@@ -59,6 +60,13 @@ const styles = StyleSheet.create({
   },
   art: { alignItems: 'center', justifyContent: 'center' },
   name: { color: theme.textPrimary, fontSize: 20, fontWeight: '800' },
+  perk: {
+    color: theme.accentGold,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   blurb: {
     color: theme.textSecondary,
     fontSize: 13,
