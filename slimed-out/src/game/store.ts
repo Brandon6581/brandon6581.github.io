@@ -2,7 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { DEV_GOO_GRANT } from '@/src/dev/devMode';
+
 import { DEFAULT_BACKDROP_ID } from './backgroundData';
+import { ownsItem } from './entitlements';
 import {
   computeOfflineEarnings,
   computeTapValue,
@@ -51,6 +54,7 @@ function initialState(): GameState {
     ownedSkins: [],
     boostExpiresAt: 0,
     boostMultiplier: 2,
+    devModeEnabled: false,
   };
 }
 
@@ -85,6 +89,9 @@ interface GameActions {
   setBackdrop: (id: string) => void;
   setFarmName: (name: string) => void;
   setDisplayName: (name: string) => void;
+  setDevMode: (enabled: boolean) => void;
+  toggleDevMode: () => void;
+  grantDevGoo: () => void;
   resetProgress: () => void;
   touchSave: () => void;
 }
@@ -251,13 +258,30 @@ export const useGameStore = create<GameStore>()(
       setBackdrop: (id: string) => set({ selectedBackdropId: id }),
 
       setFarmName: (name: string) => {
-        if (!get().purchasedAddOns.includes('name_your_farm')) return;
+        if (!ownsItem(get(), 'name_your_farm')) return;
         set({ farmName: sanitizeName(name, DEFAULT_FARM_NAME) });
       },
 
       setDisplayName: (name: string) => {
-        if (!get().purchasedAddOns.includes('custom_username')) return;
+        if (!ownsItem(get(), 'custom_username')) return;
         set({ displayName: sanitizeName(name, DEFAULT_DISPLAY_NAME) });
+      },
+
+      // Developer testing mode. These are inert in a release build: the guard
+      // folds to false at build time, so the flag can never be turned on.
+      setDevMode: (enabled: boolean) => {
+        if (!__DEV__) return;
+        set({ devModeEnabled: enabled });
+      },
+
+      toggleDevMode: () => {
+        if (!__DEV__) return;
+        set((s) => ({ devModeEnabled: !s.devModeEnabled }));
+      },
+
+      grantDevGoo: () => {
+        if (!__DEV__ || !get().devModeEnabled) return;
+        set((s) => ({ goo: s.goo + DEV_GOO_GRANT, lifetimeGoo: s.lifetimeGoo + DEV_GOO_GRANT }));
       },
 
       resetProgress: () => {
@@ -271,6 +295,7 @@ export const useGameStore = create<GameStore>()(
           farmName: s.farmName,
           displayName: s.displayName,
           selectedBackdropId: s.selectedBackdropId,
+          devModeEnabled: s.devModeEnabled,
         });
       },
 
@@ -279,7 +304,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 3,
+      version: 4,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -305,6 +330,10 @@ export const useGameStore = create<GameStore>()(
           patched.ownedSkins ??= [];
           patched.boostExpiresAt ??= 0;
           patched.boostMultiplier ??= 2;
+        }
+
+        if (fromVersion < 4) {
+          patched.devModeEnabled ??= false;
         }
 
         return patched;

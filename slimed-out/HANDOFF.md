@@ -23,6 +23,7 @@ are still standing in for the real thing.
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
+- [Developer testing mode](#developer-testing-mode)
 - [Known traps](#known-traps)
 - [Test status](#test-status)
 
@@ -113,12 +114,17 @@ src/game/                — pure logic, no UI —
   types.ts               shared shapes + upgrade milestones
   slimeData.ts           22 slimes: cost, output, unlock gate, look
   upgradeData.ts         20 free tap upgrades
+  entitlements.ts        the ONE place ownership is decided
   shopData.ts            paid catalog: categories, effects, Coming Soon
   skinData.ts            collectible looks + the findable golden variant
   backgroundData.ts      backdrop variants (all free)
   economy.ts             all formulas: cost, gps, offline
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
+
+src/dev/                 — never ships; stripped at build time —
+  devMode.ts             the build gate + activation code
+  DevPanel.tsx           hidden code field and dev panel
 
 src/services/
   adService.ts           ad pacing rules + mock implementation
@@ -332,10 +338,78 @@ It also means none of it is real yet.
 - [ ] Swap in real IAP per the header comment in `iapService.ts`.
 - [ ] Create products in App Store Connect and Play Console matching the purchasable IDs in `shopData.ts` (Coming Soon entries are not products).
 - [ ] Add server-side receipt validation.
+- [ ] Run `npm run check:no-dev-mode` and confirm it passes.
 - [ ] Move to an EAS development build — neither native SDK runs in Expo Go.
 
 Both service files carry step-by-step wiring notes in a header comment, including which
 calls to implement. Read those before starting; they are more specific than this page.
+
+---
+
+## Developer testing mode
+
+Internal testing only. Enter the code **`slimetime`** in the small unlabeled field
+at the bottom of Settings to unlock every paid entitlement; enter it again, or flip
+the switch in the panel that appears, to turn it back off. State persists across
+reloads, so testing does not require reinstalling.
+
+### It cannot ship — and that is enforced, not just intended
+
+A "free everything" backdoor in a live build is an App Store rejection risk and a
+straightforward exploit. So this is gated at **build** time, not run time.
+
+`__DEV__` is a literal `true` in development and `false` in release builds. Babel
+inlines it per module and the minifier eliminates the dead branch, so in a
+production bundle the panel, the activation code, and the unlock logic are
+**physically absent** rather than merely disabled. Three consequences:
+
+1. The Settings field does not render — there is nothing for a reviewer to find.
+2. A hand-edited save with `devModeEnabled: true` grants nothing.
+3. The activation code is not in the shipped JS, so it cannot be grepped out.
+
+### Run this before every submission
+
+```bash
+npm run check:no-dev-mode
+```
+
+It exports real production bundles for iOS **and** Android and fails (exit 1) if any
+dev-mode marker survives. It is verified to work in both directions: it passes on the
+current code, and it correctly fails when the gate is deliberately weakened.
+
+### The one mistake to avoid
+
+Guards must test `__DEV__` **in the same file** as the code they protect:
+
+```ts
+// WRONG - Metro does not propagate constants across modules, so this stays a
+// live runtime check and the guarded strings ship in the bundle.
+import { DEV_MODE_AVAILABLE } from './devMode';
+if (!DEV_MODE_AVAILABLE) return null;
+
+// RIGHT - inlines to a literal, branch is eliminated.
+export const DevPanel = __DEV__ ? DevPanelImpl : () => null;
+```
+
+This is not hypothetical. The first version of this feature used the imported
+constant, and the panel's markup and strings shipped in the production bundle.
+`check:no-dev-mode` caught it.
+
+### Why it needs no maintenance
+
+Dev mode does not carry a list of what to unlock. Every ownership question in the
+app goes through `src/game/entitlements.ts` (`ownsItem`, `ownedItemIds`, `ownsSkin`,
+`ownedSkinIds`, `adsRemoved`), and those answer "yes" to everything while dev mode is
+active, deriving the full set from the catalogs. **A shop item or skin added later is
+covered automatically.** The rule that keeps this true: nothing outside
+`entitlements.ts` and `store.ts` may read `purchasedAddOns`, `ownedSkins`, or
+`noAdsPurchased` directly.
+
+### If you need it in a TestFlight build
+
+TestFlight builds are release builds, so `__DEV__` is false and dev mode is off. Do
+not relax the gate. Use the documented `EXPO_PUBLIC_ENABLE_DEV_MODE` opt-in in
+`devMode.ts`, set it on the internal EAS profile only, and never on production.
 
 ---
 
@@ -409,6 +483,9 @@ Be precise about this, because it shapes where to look first if something breaks
 | Shop purchases: identity, skins, boost, bundle | Verified in browser |
 | Timed boost raises live output (6/s → 12/s) | Verified in browser |
 | Coming Soon rows are not purchasable | Verified in browser |
+| Dev mode: code on/off, unlock-all, revert | Verified in browser |
+| Dev mode absent from production bundles (iOS + Android) | Verified — 0 markers |
+| check:no-dev-mode fails on a weakened gate | Verified |
 | Save persistence across reload | Verified in browser |
 | Shop purchase flow | Verified in browser |
 | Offline earnings math | Verified in browser |

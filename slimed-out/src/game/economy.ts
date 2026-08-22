@@ -1,3 +1,4 @@
+import { ownedItemIds } from './entitlements';
 import { SHOP_ITEM_BY_ID } from './shopData';
 import { SLIME_BY_ID, SLIMES } from './slimeData';
 import { GameState, OfflineResult, OwnedSlimeState, SLIME_UPGRADE_MILESTONES, SlimeDef } from './types';
@@ -30,7 +31,7 @@ export function globalMilestoneMultiplier(state: GameState): number {
 /** Bonus from purchased shop items (small and optional by design). */
 export function shopGlobalMultiplier(state: GameState): number {
   let mult = 1;
-  for (const id of state.purchasedAddOns) {
+  for (const id of ownedItemIds(state)) {
     const def = SHOP_ITEM_BY_ID[id];
     if (def?.effect.kind === 'globalProductionMult') mult += def.effect.value;
   }
@@ -86,7 +87,7 @@ export const OFFLINE_EARNINGS_RATE = 0.5;
 
 export function offlineCapHours(state: GameState): number {
   let bonus = 0;
-  for (const id of state.purchasedAddOns) {
+  for (const id of ownedItemIds(state)) {
     const def = SHOP_ITEM_BY_ID[id];
     if (def?.effect.kind === 'offlineCapBonusHours') bonus += def.effect.value;
   }

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 import { createDevAdService, shouldShowInterstitial } from '@/src/services/adService';
+import { adsRemoved } from '@/src/game/entitlements';
 import { useGameStore } from '@/src/game/store';
 
 import { AdModal } from './AdModal';
@@ -37,7 +38,7 @@ export function AdGateProvider({ children }: { children: React.ReactNode }) {
     const state = useGameStore.getState();
     const due = shouldShowInterstitial(
       {
-        noAdsPurchased: state.noAdsPurchased,
+        noAdsPurchased: adsRemoved(state),
         lifetimeGoo: state.lifetimeGoo,
         lastAdShownAt: state.lastAdShownAt,
         sessionStartedAt: sessionStartedAt.current,

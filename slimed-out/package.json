@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check:no-dev-mode": "node ./scripts/check-no-dev-mode.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

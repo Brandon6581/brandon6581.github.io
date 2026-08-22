@@ -102,4 +102,11 @@ export interface GameState {
   boostExpiresAt: number;
   /** Multiplier applied while the boost is running. */
   boostMultiplier: number;
+
+  /**
+   * Developer testing mode. Persisted so testing survives a reload, but it
+   * only has any effect when the build-time gate in src/dev/devMode.ts allows
+   * it - a release build ignores this flag entirely.
+   */
+  devModeEnabled: boolean;
 }

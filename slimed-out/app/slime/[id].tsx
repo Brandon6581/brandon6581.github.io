@@ -13,6 +13,7 @@ import {
   nextSlimeUpgrade,
   slimeUpgradeMultiplier,
 } from '@/src/game/economy';
+import { ownedItemIds, ownedSkinIds } from '@/src/game/entitlements';
 import { resolveLook } from '@/src/game/skinData';
 import { SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
@@ -29,7 +30,7 @@ export default function SlimeDetailScreen() {
   const buySlimeUpgrade = useGameStore((s) => s.buySlimeUpgrade);
   const { eyes, rouse } = useSlimeEyes();
 
-  const backdrop = resolveBackdrop(state.selectedBackdropId, state.purchasedAddOns);
+  const backdrop = resolveBackdrop(state.selectedBackdropId, ownedItemIds(state));
   const def = id ? SLIME_BY_ID[id] : undefined;
 
   if (!def) {
@@ -66,7 +67,7 @@ export default function SlimeDetailScreen() {
           <View style={styles.portrait}>
             <View pointerEvents="none" style={styles.portraitArt}>
               <SlimeSprite
-                look={resolveLook(def.id, def.look, state.ownedSkins)}
+                look={resolveLook(def.id, def.look, ownedSkinIds(state))}
                 eyes={eyes}
                 size={220}
                 seed={def.id}

@@ -10,6 +10,7 @@ import {
   nextSlimeUpgrade,
   slimeUpgradeMultiplier,
 } from '@/src/game/economy';
+import { ownedSkinIds } from '@/src/game/entitlements';
 import { resolveLook } from '@/src/game/skinData';
 import { SLIMES } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
@@ -59,7 +60,7 @@ export default function SlimesScreen() {
               >
                 <View pointerEvents="none">
                   <SlimeSprite
-                    look={resolveLook(def.id, def.look, state.ownedSkins)}
+                    look={resolveLook(def.id, def.look, ownedSkinIds(state))}
                     eyes="asleep"
                     size={68}
                     seed={def.id}

@@ -4,7 +4,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { GameScreen } from '@/src/components/GameScreen';
 import { useIAP } from '@/src/components/IAPProvider';
 import { NameEditor } from '@/src/components/NameEditor';
+import { DevPanel } from '@/src/dev/DevPanel';
 import { BACKDROPS, isBackdropUnlocked } from '@/src/game/backgroundData';
+import { adsRemoved, ownedItemIds, ownsItem } from '@/src/game/entitlements';
 import { DEFAULT_DISPLAY_NAME, DEFAULT_FARM_NAME, useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
 
@@ -12,8 +14,8 @@ export default function SettingsScreen() {
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const toggleSound = useGameStore((s) => s.toggleSound);
   const resetProgress = useGameStore((s) => s.resetProgress);
-  const noAdsPurchased = useGameStore((s) => s.noAdsPurchased);
-  const purchasedAddOns = useGameStore((s) => s.purchasedAddOns);
+  const state = useGameStore();
+  const noAdsPurchased = adsRemoved(state);
   const selectedBackdropId = useGameStore((s) => s.selectedBackdropId);
   const setBackdrop = useGameStore((s) => s.setBackdrop);
   const farmName = useGameStore((s) => s.farmName);
@@ -24,9 +26,9 @@ export default function SettingsScreen() {
   const [restoring, setRestoring] = useState(false);
   const [editing, setEditing] = useState<'farm' | 'display' | null>(null);
 
-  const hasFoundersBadge = purchasedAddOns.includes('founders_badge');
-  const canNameFarm = purchasedAddOns.includes('name_your_farm');
-  const canNameSelf = purchasedAddOns.includes('custom_username');
+  const hasFoundersBadge = ownsItem(state, 'founders_badge');
+  const canNameFarm = ownsItem(state, 'name_your_farm');
+  const canNameSelf = ownsItem(state, 'custom_username');
 
   const handleRestore = async () => {
     setRestoring(true);
@@ -75,7 +77,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Backdrop</Text>
         <View style={styles.backdropGrid}>
           {BACKDROPS.map((b) => {
-            const unlocked = isBackdropUnlocked(b, purchasedAddOns);
+            const unlocked = isBackdropUnlocked(b, ownedItemIds(state));
             const selected = b.id === selectedBackdropId;
             return (
               <Pressable
@@ -128,6 +130,9 @@ export default function SettingsScreen() {
         <Pressable style={[styles.actionButton, styles.dangerButton]} onPress={handleReset}>
           <Text style={styles.actionButtonText}>Reset Progress</Text>
         </Pressable>
+
+        {/* Renders nothing at all in a release build - see src/dev/devMode.ts. */}
+        <DevPanel />
       </ScrollView>
 
       <NameEditor

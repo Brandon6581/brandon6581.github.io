@@ -13,6 +13,7 @@ import {
   ShopItemDef,
   starterPackSeparateValue,
 } from '@/src/game/shopData';
+import { adsRemoved, ownsItem } from '@/src/game/entitlements';
 import { SKIN_BY_ID } from '@/src/game/skinData';
 import { useGameStore } from '@/src/game/store';
 import { NO_ADS_PRODUCT_ID, formatPrice } from '@/src/services/iapService';
@@ -20,8 +21,8 @@ import { theme } from '@/src/theme';
 import { formatNumber } from '@/src/utils/format';
 
 export default function ShopScreen() {
-  const noAdsPurchased = useGameStore((s) => s.noAdsPurchased);
-  const purchasedAddOns = useGameStore((s) => s.purchasedAddOns);
+  const state = useGameStore();
+  const noAdsPurchased = adsRemoved(state);
   const { buy } = useIAP();
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -31,7 +32,7 @@ export default function ShopScreen() {
     setBusyId(null);
   };
 
-  const owns = (id: string) => purchasedAddOns.includes(id);
+  const owns = (id: string) => ownsItem(state, id);
 
   return (
     <GameScreen title="Shop">

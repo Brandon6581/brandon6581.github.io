@@ -5,17 +5,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Backdrop } from '@/src/art/Backdrop';
 import { computeGps } from '@/src/game/economy';
 import { resolveBackdrop } from '@/src/game/backgroundData';
+import { ownedItemIds } from '@/src/game/entitlements';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
 import { formatGps, formatNumber } from '@/src/utils/format';
 
 export function GameScreen({ title, children }: { title: string; children: ReactNode }) {
   const goo = useGameStore((s) => s.goo);
-  const selectedBackdropId = useGameStore((s) => s.selectedBackdropId);
-  const purchasedAddOns = useGameStore((s) => s.purchasedAddOns);
   const state = useGameStore();
   const gps = computeGps(state);
-  const backdrop = resolveBackdrop(selectedBackdropId, purchasedAddOns);
+  const backdrop = resolveBackdrop(state.selectedBackdropId, ownedItemIds(state));
 
   return (
     <Backdrop def={backdrop}>
