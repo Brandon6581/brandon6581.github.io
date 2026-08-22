@@ -86,4 +86,20 @@ export interface GameState {
   soundEnabled: boolean;
   /** Chosen backdrop variant id; falls back to the free default when unset. */
   selectedBackdropId: string;
+
+  // ---- Identity ----
+  /** What the player calls their farm. Editable once `name_your_farm` is owned. */
+  farmName: string;
+  /** The player's display name. Editable once `custom_username` is owned. */
+  displayName: string;
+
+  // ---- Collection ----
+  /** Skin ids the player owns, whether bought or found during play. */
+  ownedSkins: string[];
+
+  // ---- Convenience ----
+  /** Epoch ms when the temporary production boost ends; 0 when inactive. */
+  boostExpiresAt: number;
+  /** Multiplier applied while the boost is running. */
+  boostMultiplier: number;
 }

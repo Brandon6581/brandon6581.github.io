@@ -1,4 +1,4 @@
-import { ADD_ONS, NO_ADS_PRICE } from '@/src/game/addOnData';
+import { NO_ADS_PRICE, SHOP_ITEMS } from '@/src/game/shopData';
 import { IAPProductDef } from '@/src/game/types';
 
 /**
@@ -13,7 +13,7 @@ import { IAPProductDef } from '@/src/game/types';
  *      client build - it will not run in Expo Go).
  *   2. Create matching one-time (non-consumable) product IDs in App Store
  *      Connect and the Play Console: `slimed_out_no_ads` ($0.99), plus one
- *      product per add-on id in addOnData.ts at $0.25 or $0.50.
+ *      product per purchasable id in shopData.ts at its listed price.
  *   3. Implement `IAPService` using `initConnection`, `getProducts`,
  *      `requestPurchase`, and `finishTransaction` from that package, and
  *      swap it in wherever `createMockIAPService` is constructed today
@@ -35,11 +35,13 @@ export function getProductCatalog(): IAPProductDef[] {
       price: NO_ADS_PRICE,
       kind: 'noAds',
     },
-    ...ADD_ONS.map((a) => ({
+    // Coming Soon entries are intentionally excluded - they have no price
+    // and must never reach a real store as a product.
+    ...SHOP_ITEMS.filter((a) => a.status === 'available' && a.price != null).map((a) => ({
       id: a.id,
       name: a.name,
-      description: a.description,
-      price: a.price,
+      description: a.blurb,
+      price: a.price as number,
       kind: 'addOn' as const,
     })),
   ];

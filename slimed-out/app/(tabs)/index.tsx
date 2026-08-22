@@ -7,10 +7,12 @@ import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
 import { GameScreen } from '@/src/components/GameScreen';
+import { SkinFoundModal } from '@/src/components/SkinFoundModal';
+import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
 import { SLIMES, SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
-import { formatNumber } from '@/src/utils/format';
+import { formatDuration, formatNumber } from '@/src/utils/format';
 
 /**
  * ============================================================================
@@ -48,8 +50,14 @@ export default function HomeScreen() {
   const tap = useGameStore((s) => s.tap);
   const totalTaps = useGameStore((s) => s.totalTaps);
   const slimes = useGameStore((s) => s.slimes);
+  const farmName = useGameStore((s) => s.farmName);
+  const ownedSkins = useGameStore((s) => s.ownedSkins);
+  const boostExpiresAt = useGameStore((s) => s.boostExpiresAt);
+  const boostMult = useGameStore((s) => s.boostMultiplier);
   const { maybeShowAd } = useAdGate();
   const router = useRouter();
+  const [foundSkinId, setFoundSkinId] = useState<string | null>(null);
+  const [boostLeft, setBoostLeft] = useState(0);
 
   // Two independent drivers so a tap reaction can never interrupt the idle
   // loop (and vice versa) - they are composed, not shared.
@@ -89,10 +97,22 @@ export default function HomeScreen() {
     return () => loop.stop();
   }, [bob]);
 
+  // Keeps the boost badge counting down without re-rendering on every tick.
+  useEffect(() => {
+    const update = () => setBoostLeft(Math.max(0, boostExpiresAt - Date.now()));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [boostExpiresAt]);
+
   const handleTap = useCallback(() => {
-    const value = tap();
+    const { value, foundSkinId: found } = tap();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     rouse();
+    if (found) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setFoundSkinId(found);
+    }
 
     pop.setValue(1);
     Animated.spring(pop, {
@@ -119,10 +139,19 @@ export default function HomeScreen() {
   const squishY = pop.interpolate({ inputRange: [0, 1], outputRange: [1, 0.86] });
 
   const ownedSummary = SLIMES.filter((s) => (slimes[s.id]?.count ?? 0) > 0);
-  const heroLook = SLIME_BY_ID.basic.look;
+  const heroLook = resolveLook('basic', SLIME_BY_ID.basic.look, ownedSkins);
+  const boostRunning = boostLeft > 0;
 
   return (
-    <GameScreen title="Slimed Out!">
+    <GameScreen title={farmName}>
+      {boostRunning && (
+        <View style={styles.boostBadge}>
+          <Text style={styles.boostText}>
+            {boostMult}x goo · {formatDuration(boostLeft)} left
+          </Text>
+        </View>
+      )}
+
       <View style={styles.stage}>
         {/* ---- Layer 1: decorative sprite. Never interactive. ---- */}
         <Animated.View
@@ -184,7 +213,12 @@ export default function HomeScreen() {
                 onPress={() => router.push({ pathname: '/slime/[id]', params: { id: def.id } })}
               >
                 <View pointerEvents="none">
-                  <SlimeSprite look={def.look} eyes="asleep" size={38} seed={def.id} />
+                  <SlimeSprite
+                    look={resolveLook(def.id, def.look, ownedSkins)}
+                    eyes="asleep"
+                    size={38}
+                    seed={def.id}
+                  />
                 </View>
                 <Text style={styles.rowName}>{def.name}</Text>
                 <Text style={styles.rowCount}>x{formatNumber(owned.count)}</Text>
@@ -193,11 +227,27 @@ export default function HomeScreen() {
           })
         )}
       </ScrollView>
+
+      <SkinFoundModal
+        skin={foundSkinId ? SKIN_BY_ID[foundSkinId] : null}
+        onClose={() => setFoundSkinId(null)}
+      />
     </GameScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  boostBadge: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(245,196,81,0.18)',
+    borderColor: theme.accentGold,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    marginBottom: 4,
+  },
+  boostText: { color: theme.accentGold, fontSize: 12, fontWeight: '800' },
   stage: {
     height: 250,
     alignItems: 'center',

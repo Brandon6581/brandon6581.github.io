@@ -3,8 +3,9 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 
 import { GameScreen } from '@/src/components/GameScreen';
 import { useIAP } from '@/src/components/IAPProvider';
+import { NameEditor } from '@/src/components/NameEditor';
 import { BACKDROPS, isBackdropUnlocked } from '@/src/game/backgroundData';
-import { useGameStore } from '@/src/game/store';
+import { DEFAULT_DISPLAY_NAME, DEFAULT_FARM_NAME, useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
 
 export default function SettingsScreen() {
@@ -15,10 +16,17 @@ export default function SettingsScreen() {
   const purchasedAddOns = useGameStore((s) => s.purchasedAddOns);
   const selectedBackdropId = useGameStore((s) => s.selectedBackdropId);
   const setBackdrop = useGameStore((s) => s.setBackdrop);
+  const farmName = useGameStore((s) => s.farmName);
+  const displayName = useGameStore((s) => s.displayName);
+  const setFarmName = useGameStore((s) => s.setFarmName);
+  const setDisplayName = useGameStore((s) => s.setDisplayName);
   const { restore } = useIAP();
   const [restoring, setRestoring] = useState(false);
+  const [editing, setEditing] = useState<'farm' | 'display' | null>(null);
 
   const hasFoundersBadge = purchasedAddOns.includes('founders_badge');
+  const canNameFarm = purchasedAddOns.includes('name_your_farm');
+  const canNameSelf = purchasedAddOns.includes('custom_username');
 
   const handleRestore = async () => {
     setRestoring(true);
@@ -49,6 +57,20 @@ export default function SettingsScreen() {
             <Text style={styles.badgeText}>Founder - thanks for supporting Slimed Out!</Text>
           </View>
         )}
+
+        <Text style={styles.sectionTitle}>Your farm</Text>
+        <IdentityRow
+          label="Farm name"
+          value={farmName}
+          unlocked={canNameFarm}
+          onPress={() => setEditing('farm')}
+        />
+        <IdentityRow
+          label="Display name"
+          value={displayName}
+          unlocked={canNameSelf}
+          onPress={() => setEditing('display')}
+        />
 
         <Text style={styles.sectionTitle}>Backdrop</Text>
         <View style={styles.backdropGrid}>
@@ -107,7 +129,49 @@ export default function SettingsScreen() {
           <Text style={styles.actionButtonText}>Reset Progress</Text>
         </Pressable>
       </ScrollView>
+
+      <NameEditor
+        visible={editing !== null}
+        title={editing === 'farm' ? 'Name your farm' : 'Choose your display name'}
+        initialValue={editing === 'farm' ? farmName : displayName}
+        placeholder={editing === 'farm' ? DEFAULT_FARM_NAME : DEFAULT_DISPLAY_NAME}
+        onCancel={() => setEditing(null)}
+        onSave={(value) => {
+          if (editing === 'farm') setFarmName(value);
+          else if (editing === 'display') setDisplayName(value);
+          setEditing(null);
+        }}
+      />
     </GameScreen>
+  );
+}
+
+/** A name row that turns into an editable control once its item is owned. */
+function IdentityRow({
+  label,
+  value,
+  unlocked,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  unlocked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.card} disabled={!unlocked} onPress={onPress}>
+      <View style={styles.rowBetween}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.identityLabel}>{label}</Text>
+          <Text style={styles.identityValue} numberOfLines={1}>
+            {value}
+          </Text>
+        </View>
+        <Text style={unlocked ? styles.identityAction : styles.identityLocked}>
+          {unlocked ? 'Edit' : 'In the shop'}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -160,6 +224,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  identityLabel: {
+    color: theme.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  identityValue: { color: theme.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 2 },
+  identityAction: { color: theme.accentGreen, fontSize: 13, fontWeight: '700' },
+  identityLocked: { color: theme.textMuted, fontSize: 12, fontWeight: '600' },
   label: { color: theme.textPrimary, fontSize: 15, fontWeight: '600' },
   value: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
   actionButton: {

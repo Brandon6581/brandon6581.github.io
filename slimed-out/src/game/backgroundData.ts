@@ -5,9 +5,11 @@
  * illustrated scene. Everything here is data, so adding a variant is one entry
  * plus (optionally) a new silhouette shape in Backdrop.tsx - no screen changes.
  *
- * `unlockedBy` is the add-on product id that grants it, or null when free. The
- * paid Starlight theme is deliberately just one option among several rather
- * than the only alternative to a blank screen.
+ * Every backdrop is free. Backdrops are a display preference rather than
+ * something with real ownership weight, so they are chosen in Settings and are
+ * not sold in the shop. `unlockedBy` stays in the model - it costs nothing and
+ * leaves the door open for a genuinely special backdrop later - but nothing
+ * sets it today.
  */
 
 export type BackdropShape = 'canopy' | 'hills' | 'stalactites' | 'horizon';
@@ -69,14 +71,14 @@ export const BACKDROPS: BackdropDef[] = [
   {
     id: 'starlight',
     name: 'Starlight',
-    blurb: 'A slow, high, open night sky.',
+    blurb: 'A slow, high, open night sky. Best with the lights off.',
     sky: ['#1B2350', '#141A3C', '#0C1028'],
     glow: { color: '#A9B8FF', x: 0.24, y: 0.18 },
     bands: ['#182047', '#121838', '#0B1028'],
     shape: 'hills',
     motes: 'stars',
     moteColor: '#EAF0FF',
-    unlockedBy: 'theme_starlight',
+    unlockedBy: null,
   },
 ];
 

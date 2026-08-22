@@ -10,7 +10,7 @@ are still standing in for the real thing.
 | **Project dir** | `slimed-out/` |
 | **Stack** | Expo SDK 54 · React Native 0.81.5 · React 19.1 · Zustand 5 · react-native-svg 15 |
 | **State** | Playable end to end; ads and purchases are mocked |
-| **Content** | 22 slimes · 20 tap upgrades · 4 backdrops |
+| **Content** | 22 slimes · 20 tap upgrades · 4 free backdrops · 4 skins |
 
 ---
 
@@ -113,8 +113,9 @@ src/game/                — pure logic, no UI —
   types.ts               shared shapes + upgrade milestones
   slimeData.ts           22 slimes: cost, output, unlock gate, look
   upgradeData.ts         20 free tap upgrades
-  addOnData.ts           10 paid add-ons + their effects
-  backgroundData.ts      backdrop variants + unlock rules
+  shopData.ts            paid catalog: categories, effects, Coming Soon
+  skinData.ts            collectible looks + the findable golden variant
+  backgroundData.ts      backdrop variants (all free)
   economy.ts             all formulas: cost, gps, offline
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
@@ -181,15 +182,15 @@ The app never shows a flat color. `backgroundData.ts` defines variants as data
 (sky gradient, glow position, three silhouette bands, mote style); `Backdrop.tsx`
 renders them. `Mossy Grove` is the free default.
 
-`unlockedBy` is an add-on product id, or `null` for free. Starlight is deliberately
-just one option among several rather than the only alternative to a blank screen.
-`resolveBackdrop()` falls back to the free default if a saved id is unknown or no
-longer owned.
+**All four backdrops are free, and the picker lives in Settings.** Both are decided
+calls. A backdrop is a display preference with no real ownership weight, so it is
+not something to charge for, and it belongs with the other preferences rather than
+in a place to buy things. Starlight used to be a $0.25 purchase; it is now free like
+the rest.
 
-**The picker lives in Settings, and stays there.** That is a decided call, not an
-accident of where it was easiest to put. Backdrops are a display preference, so
-they sit with the other preferences; the Shop stays a place to buy things. A later
-shop content pass should not relocate it.
+`unlockedBy` stays in the data model — it costs nothing and leaves room for a
+genuinely special backdrop later — but nothing sets it today.
+`resolveBackdrop()` falls back to the free default if a saved id is unknown.
 
 **To add a backdrop:** one entry in `BACKDROPS`. Add a new `shape` only if none of
 the four existing silhouettes fit.
@@ -249,22 +250,62 @@ reach for:
 
 ## Monetization
 
-The governing rule, and the one to defend in review: **the entire upgrade tree is
-reachable without spending anything.** Paid items are ad removal, cosmetics, and two small
-optional accelerators. Nothing is paywalled.
+The rule this catalog is built on: **a paid item should carry weight** - identity,
+ownership, collection, or real convenience. Something that is only a different set
+of pixels behind the UI does not qualify. That is why backdrops are free and chosen
+in Settings rather than sold.
 
-| Product | Price | Count | Effect |
-|---|---|---|---|
-| **Remove Ads** (`slimed_out_no_ads`) | $0.99 | 1 | Disables interstitials permanently. |
-| **Add-ons** | $0.25 | 5 | Cosmetic only — skins, tap trail, theme, sound pack, nicknames. |
-| **Add-ons** | $0.50 | 5 | Three cosmetic, plus +5% production and +8 offline hours. |
+The free upgrade tree stays completable without spending anything. Nothing gates
+progression; the timed boost only shortens a wait a player could sit through.
 
-Product IDs for the add-ons are the `id` fields in `addOnData.ts` — they must match what
-you create in App Store Connect and the Play Console exactly.
+| Category | Items | Price |
+|---|---|---|
+| **Remove Ads** | Turns off interstitials | $0.99 |
+| **Make it yours** | Name Your Farm, Display Name, Founder's Badge | $0.25–$0.50 |
+| **Convenience** | 2x Goo for an Hour (repeatable), Offline Extender, Lucky Charm | $0.50 |
+| **Rare finds** | Golden Slime — also findable in play | $0.50 |
+| **Collection** | 3 slime skins, 2 tap trails | $0.25–$0.50 |
+| **Bundle** | Starter Pack: 25K goo + 2 cosmetics | $0.99 |
+| **Coming soon** | Gift a Friend, More Farm Plots | not purchasable |
 
-The current add-on list is a **placeholder set** pending a content pass once the slime
-roster is locked. Don't invest in reworking those items yet. When that pass happens,
-leave the backdrop picker in Settings (see [Art system](#art-system)).
+Product ids are the `id` fields in `shopData.ts` and must match App Store Connect
+and the Play Console exactly. `getProductCatalog()` filters out Coming Soon entries
+so they can never reach a real store as products.
+
+### How effects work
+
+Purchases funnel through `applyShopItem(id)` in the store, which switches on the
+item's `effect`. Most effects need nothing beyond recording ownership in
+`purchasedAddOns` - `unlockFarmName`, `globalProductionMult`, `cosmetic` and friends
+are all read straight off that list. The ones that do more:
+
+- **`tempBoost`** sets `boostExpiresAt`, stacking onto any remaining time rather
+  than truncating it. It is the one consumable, so `restoreEntitlements` explicitly
+  skips it - restoring purchases must not hand out free boosts.
+- **`bundle`** grants goo plus a set of skins and extras in one go.
+- **`skin`** adds to `ownedSkins`; `resolveLook()` makes every sprite honor it.
+
+### The timed boost and offline earnings
+
+A running boost is credited for **only the slice of the offline window it actually
+covered** (see `computeOfflineEarnings`). Buying an hour of double goo and closing
+the app still pays out, but the boost never silently doubles an entire 8-hour
+window. `baseGlobalMultiplier()` exists precisely so offline can compute without
+the boost and add the overlap separately.
+
+### Identity
+
+`farmName` and `displayName` live in the store with `name_your_farm` and
+`custom_username` as their unlock gates. The setters refuse to write unless the
+matching item is owned, so the gate holds even if UI is wired up wrong. Names are
+trimmed, collapsed, and capped at 24 characters. `resetProgress` deliberately keeps
+entitlements, skins, and names - wiping progress should not confiscate purchases.
+
+### The rare variant
+
+The Golden Slime can turn up on its own: a 1-in-1500 chance per tap, after 150
+taps, once only. Finding it shows a celebration modal and adds it to `ownedSkins` -
+the same state buying it would produce, so there is one code path either way.
 
 ---
 
@@ -282,13 +323,14 @@ It also means none of it is real yet.
 | Restore purchases | **Mock** | Returns empty — the mock never left the device. |
 | Receipt validation | **Missing** | Server-side verification before granting entitlements. |
 | Bundle IDs, icons | **Placeholder** | `com.example.slimedout` and stock Expo art in `app.json`. |
+| Gift a Friend | **Blocked** | Needs player accounts and a server. Shown as Coming Soon; not a store product. |
 
 ### Checklist
 
 - [ ] Replace `ios.bundleIdentifier` and `android.package` in `app.json`; ship real icons.
 - [ ] Swap in the real ad SDK per the header comment in `adService.ts`.
 - [ ] Swap in real IAP per the header comment in `iapService.ts`.
-- [ ] Create products in App Store Connect and Play Console matching the IDs in `addOnData.ts`.
+- [ ] Create products in App Store Connect and Play Console matching the purchasable IDs in `shopData.ts` (Coming Soon entries are not products).
 - [ ] Add server-side receipt validation.
 - [ ] Move to an EAS development build — neither native SDK runs in Expo Go.
 
@@ -363,6 +405,10 @@ Be precise about this, because it shapes where to look first if something breaks
 | Tapping, slime purchase, upgrades | Verified in browser |
 | Tap-not-drag regression (press-move-release) | Verified in browser — 5/5 registered |
 | Character cards, backdrop switching | Verified in browser |
+| v2 → v3 save migration (retired ids dropped) | Verified in browser |
+| Shop purchases: identity, skins, boost, bundle | Verified in browser |
+| Timed boost raises live output (6/s → 12/s) | Verified in browser |
+| Coming Soon rows are not purchasable | Verified in browser |
 | Save persistence across reload | Verified in browser |
 | Shop purchase flow | Verified in browser |
 | Offline earnings math | Verified in browser |

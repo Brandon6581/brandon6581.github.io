@@ -2,7 +2,7 @@ import { TapUpgradeDef } from './types';
 
 // Every upgrade below is bought with in-game goo. There is nothing in this
 // list, or anywhere in the free upgrade tree, that requires real money -
-// paid add-ons (see addOnData.ts) only ever offer small, optional extras.
+// paid shop items (see shopData.ts) never gate progression.
 //
 // Twenty rungs rather than ten, with the extra ones concentrated early, so a
 // new player always has a next purchase in sight instead of grinding between

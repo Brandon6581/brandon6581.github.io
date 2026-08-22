@@ -10,6 +10,7 @@ import {
   nextSlimeUpgrade,
   slimeUpgradeMultiplier,
 } from '@/src/game/economy';
+import { resolveLook } from '@/src/game/skinData';
 import { SLIMES } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { theme } from '@/src/theme';
@@ -57,7 +58,12 @@ export default function SlimesScreen() {
                 onPress={() => router.push({ pathname: '/slime/[id]', params: { id: def.id } })}
               >
                 <View pointerEvents="none">
-                  <SlimeSprite look={def.look} eyes="asleep" size={68} seed={def.id} />
+                  <SlimeSprite
+                    look={resolveLook(def.id, def.look, state.ownedSkins)}
+                    eyes="asleep"
+                    size={68}
+                    seed={def.id}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name}>{def.name}</Text>

@@ -2,16 +2,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { ADD_ON_BY_ID } from './addOnData';
 import { DEFAULT_BACKDROP_ID } from './backgroundData';
 import {
-  computeGps,
   computeOfflineEarnings,
   computeTapValue,
   costForNextSlime,
   costForSlimeUpgrade,
   nextSlimeUpgrade,
+  rawGps,
+  globalMultiplier,
 } from './economy';
+import { GOLDEN_FIND_CHANCE, GOLDEN_FIND_MIN_TAPS, GOLDEN_SKIN_ID } from './skinData';
+import { SHOP_ITEM_BY_ID, STARTER_PACK_EXTRA_IDS } from './shopData';
 import { SLIME_BY_ID } from './slimeData';
 import { TAP_UPGRADES } from './upgradeData';
 import { GameState, OwnedSlimeState, OfflineResult } from './types';
@@ -19,6 +21,10 @@ import { GameState, OwnedSlimeState, OfflineResult } from './types';
 const SAVE_KEY = 'slimed-out/save/v1';
 /** Below this gap we don't bother showing an offline-earnings popup. */
 const MIN_OFFLINE_GAP_MS = 60_000;
+
+export const DEFAULT_FARM_NAME = 'The Slime Patch';
+export const DEFAULT_DISPLAY_NAME = 'Slime Keeper';
+export const MAX_NAME_LENGTH = 24;
 
 function now() {
   return Date.now();
@@ -40,6 +46,11 @@ function initialState(): GameState {
     lastAdShownAt: 0,
     soundEnabled: true,
     selectedBackdropId: DEFAULT_BACKDROP_ID,
+    farmName: DEFAULT_FARM_NAME,
+    displayName: DEFAULT_DISPLAY_NAME,
+    ownedSkins: [],
+    boostExpiresAt: 0,
+    boostMultiplier: 2,
   };
 }
 
@@ -47,19 +58,33 @@ function getOwnedSlime(state: GameState, id: string): OwnedSlimeState {
   return state.slimes[id] ?? { count: 0, upgradeLevels: 0 };
 }
 
+/** Trims and clamps a player-supplied name, falling back when it's empty. */
+export function sanitizeName(input: string, fallback: string): string {
+  const trimmed = input.trim().replace(/\s+/g, ' ').slice(0, MAX_NAME_LENGTH);
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
+export interface TapResult {
+  value: number;
+  /** Set when this tap happened to turn up the rare golden variant. */
+  foundSkinId?: string;
+}
+
 interface GameActions {
-  tap: () => number;
+  tap: () => TapResult;
   tick: (deltaSeconds: number) => void;
   buySlime: (id: string) => boolean;
   buySlimeUpgrade: (id: string) => boolean;
   buyTapUpgrade: (id: string) => boolean;
-  grantAddOn: (id: string) => void;
+  applyShopItem: (id: string) => void;
   grantNoAds: () => void;
-  restoreEntitlements: (addOnIds: string[], noAds: boolean) => void;
+  restoreEntitlements: (itemIds: string[], noAds: boolean) => void;
   claimOfflineEarnings: () => OfflineResult | null;
   markAdShown: () => void;
   toggleSound: () => void;
   setBackdrop: (id: string) => void;
+  setFarmName: (name: string) => void;
+  setDisplayName: (name: string) => void;
   resetProgress: () => void;
   touchSave: () => void;
 }
@@ -74,18 +99,33 @@ export const useGameStore = create<GameStore>()(
       tap: () => {
         const state = get();
         const value = computeTapValue(state);
+        const totalTaps = state.totalTaps + 1;
+
+        // The rare variant can turn up on its own, but only once the player
+        // has a collection worth adding to - and never twice.
+        let foundSkinId: string | undefined;
+        if (
+          totalTaps >= GOLDEN_FIND_MIN_TAPS &&
+          !state.ownedSkins.includes(GOLDEN_SKIN_ID) &&
+          Math.random() < GOLDEN_FIND_CHANCE
+        ) {
+          foundSkinId = GOLDEN_SKIN_ID;
+        }
+
         set({
           goo: state.goo + value,
           lifetimeGoo: state.lifetimeGoo + value,
-          totalTaps: state.totalTaps + 1,
+          totalTaps,
+          ...(foundSkinId ? { ownedSkins: [...state.ownedSkins, foundSkinId] } : null),
         });
-        return value;
+
+        return { value, foundSkinId };
       },
 
       tick: (deltaSeconds: number) => {
         if (deltaSeconds <= 0) return;
         const state = get();
-        const gps = computeGps(state);
+        const gps = rawGps(state) * globalMultiplier(state);
         if (gps <= 0) return;
         const earned = gps * deltaSeconds;
         set({ goo: state.goo + earned, lifetimeGoo: state.lifetimeGoo + earned });
@@ -138,19 +178,57 @@ export const useGameStore = create<GameStore>()(
         return true;
       },
 
-      grantAddOn: (id: string) => {
+      /** Applies a purchased shop item's effect. Safe to call more than once. */
+      applyShopItem: (id: string) => {
         const state = get();
-        if (!ADD_ON_BY_ID[id]) return;
-        if (state.purchasedAddOns.includes(id)) return;
-        set({ purchasedAddOns: [...state.purchasedAddOns, id] });
+        const def = SHOP_ITEM_BY_ID[id];
+        if (!def || def.status !== 'available') return;
+
+        const owned = new Set(state.purchasedAddOns);
+        const skins = new Set(state.ownedSkins);
+        const patch: Partial<GameState> = {};
+
+        switch (def.effect.kind) {
+          case 'skin':
+            skins.add(def.effect.skinId);
+            break;
+
+          case 'tempBoost': {
+            // Stack onto whatever is left rather than truncating it.
+            const from = Math.max(now(), state.boostExpiresAt);
+            patch.boostExpiresAt = from + def.effect.hours * 60 * 60 * 1000;
+            patch.boostMultiplier = def.effect.multiplier;
+            break;
+          }
+
+          case 'bundle': {
+            patch.goo = state.goo + def.effect.goo;
+            patch.lifetimeGoo = state.lifetimeGoo + def.effect.goo;
+            def.effect.skinIds.forEach((s) => skins.add(s));
+            STARTER_PACK_EXTRA_IDS.forEach((extra) => owned.add(extra));
+            break;
+          }
+
+          // unlockFarmName / unlockDisplayName / globalProductionMult /
+          // offlineCapBonusHours / cosmetic are all read straight off
+          // purchasedAddOns, so recording ownership is the whole effect.
+          default:
+            break;
+        }
+
+        owned.add(id);
+        set({ ...patch, purchasedAddOns: [...owned], ownedSkins: [...skins] });
       },
 
       grantNoAds: () => set({ noAdsPurchased: true }),
 
-      restoreEntitlements: (addOnIds: string[], noAds: boolean) => {
-        const state = get();
-        const merged = Array.from(new Set([...state.purchasedAddOns, ...addOnIds]));
-        set({ purchasedAddOns: merged, noAdsPurchased: state.noAdsPurchased || noAds });
+      restoreEntitlements: (itemIds: string[], noAds: boolean) => {
+        if (noAds) set({ noAdsPurchased: true });
+        // Re-applying is safe: applyShopItem is idempotent for everything
+        // except the timed boost, which is consumable and never restored.
+        itemIds
+          .filter((id) => SHOP_ITEM_BY_ID[id]?.effect.kind !== 'tempBoost')
+          .forEach((id) => get().applyShopItem(id));
       },
 
       claimOfflineEarnings: () => {
@@ -159,7 +237,10 @@ export const useGameStore = create<GameStore>()(
         const result = computeOfflineEarnings(state, t);
         set({ lastSavedAt: t });
         if (result.elapsedMs < MIN_OFFLINE_GAP_MS || result.gooEarned <= 0) return null;
-        set((s) => ({ goo: s.goo + result.gooEarned, lifetimeGoo: s.lifetimeGoo + result.gooEarned }));
+        set((s) => ({
+          goo: s.goo + result.gooEarned,
+          lifetimeGoo: s.lifetimeGoo + result.gooEarned,
+        }));
         return result;
       },
 
@@ -169,23 +250,64 @@ export const useGameStore = create<GameStore>()(
 
       setBackdrop: (id: string) => set({ selectedBackdropId: id }),
 
-      resetProgress: () => set({ ...initialState() }),
+      setFarmName: (name: string) => {
+        if (!get().purchasedAddOns.includes('name_your_farm')) return;
+        set({ farmName: sanitizeName(name, DEFAULT_FARM_NAME) });
+      },
+
+      setDisplayName: (name: string) => {
+        if (!get().purchasedAddOns.includes('custom_username')) return;
+        set({ displayName: sanitizeName(name, DEFAULT_DISPLAY_NAME) });
+      },
+
+      resetProgress: () => {
+        // Progress resets; paid entitlements and the names attached to them do not.
+        const s = get();
+        set({
+          ...initialState(),
+          purchasedAddOns: s.purchasedAddOns,
+          ownedSkins: s.ownedSkins,
+          noAdsPurchased: s.noAdsPurchased,
+          farmName: s.farmName,
+          displayName: s.displayName,
+          selectedBackdropId: s.selectedBackdropId,
+        });
+      },
 
       touchSave: () => set({ lastSavedAt: now() }),
     }),
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
-      // v1 saves predate backdrop selection. Persist merges shallowly, so a
-      // missing key would already fall back to the initial value - this just
-      // makes the intent explicit and gives later migrations a place to live.
+      version: 3,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
-        if (fromVersion < 2 && !state.selectedBackdropId) {
-          return { ...state, selectedBackdropId: DEFAULT_BACKDROP_ID };
+        const patched: Partial<GameState> = { ...state };
+
+        if (fromVersion < 2 && !patched.selectedBackdropId) {
+          patched.selectedBackdropId = DEFAULT_BACKDROP_ID;
         }
-        return state;
+
+        if (fromVersion < 3) {
+          // v2 sold backdrops and a few items that no longer exist. Drop the
+          // retired ids so they can't linger as unknown entitlements, and seed
+          // the identity/collection/boost fields.
+          const retired = new Set([
+            'theme_starlight',
+            'nicknames',
+            'sound_squelch_2',
+            'golem_diorama',
+            'skin_golden_basic',
+          ]);
+          patched.purchasedAddOns = (patched.purchasedAddOns ?? []).filter((id) => !retired.has(id));
+          patched.farmName ??= DEFAULT_FARM_NAME;
+          patched.displayName ??= DEFAULT_DISPLAY_NAME;
+          patched.ownedSkins ??= [];
+          patched.boostExpiresAt ??= 0;
+          patched.boostMultiplier ??= 2;
+        }
+
+        return patched;
       },
     }
   )

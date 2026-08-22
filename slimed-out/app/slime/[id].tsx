@@ -13,6 +13,7 @@ import {
   nextSlimeUpgrade,
   slimeUpgradeMultiplier,
 } from '@/src/game/economy';
+import { resolveLook } from '@/src/game/skinData';
 import { SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
 import { SLIME_UPGRADE_MILESTONES } from '@/src/game/types';
@@ -64,7 +65,12 @@ export default function SlimeDetailScreen() {
           {/* Portrait. Tapping wakes it up - purely expressive, no game effect. */}
           <View style={styles.portrait}>
             <View pointerEvents="none" style={styles.portraitArt}>
-              <SlimeSprite look={def.look} eyes={eyes} size={220} seed={def.id} />
+              <SlimeSprite
+                look={resolveLook(def.id, def.look, state.ownedSkins)}
+                eyes={eyes}
+                size={220}
+                seed={def.id}
+              />
             </View>
             <Pressable
               style={StyleSheet.absoluteFill}

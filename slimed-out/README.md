@@ -25,8 +25,8 @@ own, buy upgrades, and keep earning while the app is closed.
 - **Upgrades** (Upgrades tab) are tap-power boosts - 20 of them, all bought
   with in-game goo. Every total-slimes-owned milestone of 25 also grants a
   free +10% global production bonus.
-- **Backdrops**: the game ships with three free illustrated scenes, picked in
-  Settings. A fourth arrives with the paid Starlight add-on.
+- **Backdrops**: four free illustrated scenes, picked in Settings. None of them
+  cost money.
 - **Offline progress**: closing the app doesn't stop your slimes. On the next
   launch (or when you background/foreground the app), you get a share of what
   they produced while you were away, capped at 8 hours by default (see
@@ -36,18 +36,26 @@ own, buy upgrades, and keep earning while the app is closed.
 
 ## Monetization
 
-Every upgrade needed to fully progress through the game is free and earned by
-playing - nothing below is required.
+Every upgrade needed to fully progress is free and earned by playing - nothing
+below is required, and nothing gates progression.
 
-- **Remove Ads - $0.99**: one-time purchase, turns off interstitial ad breaks.
-  Ads themselves are paced generously: the first one can't appear until a
-  player has made real progress (past the second slime and ~4 minutes of
-  play), and afterwards they're capped to at most once every ~4 minutes. See
-  `src/services/adService.ts` for the exact thresholds.
-- **Add-ons - $0.25 or $0.50 each**: small, optional cosmetics (skins,
-  themes, sound packs, a supporter badge) and a couple of modest, optional
-  accelerators (a small permanent production bonus, extra offline hours).
-  See `src/game/addOnData.ts` for the full catalog.
+- **Remove Ads - $0.99**: one-time, turns off interstitial ad breaks. Ads are
+  paced generously anyway: the first can't appear until a player has made real
+  progress (~4 minutes and 2,500 lifetime goo), then at most once every ~4
+  minutes.
+- **Make it yours - $0.25 to $0.50**: name your farm, choose a display name, or
+  take a supporter badge.
+- **Convenience - $0.50**: double goo for an hour (repeatable), extra offline
+  hours, or a small permanent +5%.
+- **Rare finds - $0.50**: the Golden Slime. It also turns up on its own during
+  normal play - this is only for anyone who never caught one.
+- **Collection - $0.25 to $0.50**: alternate slime skins and tap trails.
+- **Starter Pack - $0.99**: a goo head start plus two cosmetics, cheaper than
+  buying the parts.
+
+Backdrops are free for everyone and chosen in Settings. "Gift a Friend" and
+"More Farm Plots" appear as Coming Soon and are not purchasable - gifting needs
+player accounts, which the game does not have yet.
 
 Ads and purchases run on **mock services** out of the box so the whole game
 loop, shop, and ad pacing can be built and tested without any store
@@ -61,8 +69,9 @@ a real release.
 
 ```
 app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Shop, Settings
-src/game/            Data + pure logic: slimes, upgrades, add-ons, economy,
-                     the persisted Zustand store, and the game loop hook
+src/art/             Code-drawn SVG: slime sprites, toppers, backdrops
+src/game/            Data + pure logic: slimes, upgrades, shop, skins,
+                     economy, the persisted store, and the game loop hook
 src/services/        Ad pacing and IAP abstractions (mock + prod wiring notes)
 src/components/      Shared UI: providers for ads/IAP, modals, screen chrome
 ```
@@ -123,6 +132,7 @@ distributed on the App Store for SDK 55+ - you'd need a matching build from
    `src/services/adService.ts` and `src/services/iapService.ts`.
 3. Create matching product IDs in App Store Connect / Play Console: one
    non-consumable for Remove Ads (`slimed_out_no_ads`, $0.99) and one per
-   add-on id in `src/game/addOnData.ts` ($0.25 or $0.50 each).
+   purchasable id in `src/game/shopData.ts`. Coming Soon entries have no price
+   and must not be created as store products.
 4. Verify purchase receipts server-side before granting entitlements for a
    production release.
