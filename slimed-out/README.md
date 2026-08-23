@@ -30,7 +30,14 @@ own, buy upgrades, and keep earning while the app is closed.
 - **Offline progress**: closing the app doesn't stop your slimes. On the next
   launch (or when you background/foreground the app), you get a share of what
   they produced while you were away, capped at 8 hours by default (see
-  `src/game/economy.ts`).
+  `src/game/economy.ts`). Come back after a real absence and a **welcome-back
+  bonus** is added on top, scaled to how long you were gone.
+- **Daily** (card on the Home tab) collects the retention loop: a login streak
+  with rewards that grow across seven consecutive days and reset if you miss
+  one, three quests drawn fresh each day from a pool of eight, and a bigger
+  weekly challenge. Goo targets and rewards are sized against your own
+  production rather than fixed numbers, so they stay meaningful at every stage
+  of the game - see `src/game/dailyData.ts`.
 - Progress is saved automatically (Zustand + AsyncStorage) after every action
   and on backgrounding, so nothing is lost between sessions.
 
@@ -68,9 +75,11 @@ a real release.
 
 ```
 app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Shop, Settings
+app/daily.tsx        Login streak, daily quests, weekly challenge
 src/art/             Code-drawn SVG: slime sprites, toppers, backdrops
 src/game/            Data + pure logic: slimes, upgrades, shop, skins,
-                     economy, the persisted store, and the game loop hook
+                     economy, daily engagement, the persisted store, and
+                     the game loop hook
 src/services/        Ad pacing and IAP abstractions (mock + prod wiring notes)
 src/components/      Shared UI: providers for ads/IAP, modals, screen chrome
 ```

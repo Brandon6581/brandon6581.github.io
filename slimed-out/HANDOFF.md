@@ -20,6 +20,7 @@ are still standing in for the real thing.
 - [Code map](#code-map)
 - [Art system](#art-system)
 - [Game model](#game-model)
+- [Daily engagement](#daily-engagement)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -102,6 +103,7 @@ app/(tabs)/              five screens, Expo Router file-based tabs
   shop.tsx               real-money storefront
   settings.tsx           backdrop picker, restore, reset
 app/slime/[id].tsx       character card: portrait, lore, stats
+app/daily.tsx            login streak, daily quests, weekly challenge
 
 src/startup/             first-run flow, shown above the navigator
   StartupGate.tsx        studio splash -> onboarding -> game
@@ -124,6 +126,8 @@ src/game/                — pure logic, no UI —
   skinData.ts            collectible looks + the findable golden variant
   backgroundData.ts      backdrop variants (all free)
   economy.ts             all formulas: cost, gps, offline
+  daily.ts               period boundaries, counters, streak + reward math
+  dailyData.ts           quest pools, streak table, welcome-back constants
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
 
@@ -224,7 +228,8 @@ Four systems compose into the total production number:
 On cold start and on every background → foreground transition, the store diffs
 `lastSavedAt` against now, credits production at **50%** of the live rate, and caps the
 window at **8 hours**. Gaps under a minute are ignored so the modal does not fire every
-time someone checks a notification.
+time someone checks a notification. The welcome-back bonus rides on top of this — see
+below.
 
 ### A content note worth preserving
 
@@ -234,6 +239,45 @@ the slime card and summarized on the Settings screen. This was deliberate: the b
 for folklore without cultural insensitivity, so the roster stays with broadly-circulated
 European legends written as respectful nods, and names the origin rather than flattening
 it into generic "monster" flavor. **If you add slimes, keep that pattern.**
+
+---
+
+## Daily engagement
+
+Four retention features share one small module. `src/game/daily.ts` is pure functions —
+period math, counters, reward sizing — and `src/game/dailyData.ts` is the data. The store
+holds the state; `app/daily.tsx` renders it, reachable from a card on the home screen that
+shows a badge when something is ready to collect.
+
+| Feature | Rule |
+|---|---|
+| **Login streak** | One claim per local day. Claiming on the day after your last claim continues the run; any gap resets it to day 1. Rewards escalate across seven days (`STREAK_REWARD_SECONDS`), then hold at the day-seven value so a long run stays worth keeping without growing forever. |
+| **Daily quests** | Three drawn from a pool of eight, chosen by hashing the date — so every session on a given day sees the same three, with no stored roll to keep in sync. Claimed ids live in `claimedQuestIds` and clear at rollover. |
+| **Weekly challenge** | One drawn from a pool of four by hashing the week key, one payout per week, counted against a separate set of weekly counters. |
+| **Welcome back** | Extra goo layered on top of offline earnings: 10% of the offline payout per hour away, capped at 100%, and nothing at all under 30 minutes away. Returned as its own `welcomeBackBonus` field on `OfflineResult` so the modal can show it as a separate line and the two stay independently tunable. |
+
+### Rewards are seconds of production, not goo
+
+Every goo target and every goo reward is written as **seconds of the player's own
+production** with a floor, not a fixed number. This is the same lesson that flat tap power
+taught: `10,000 goo` is a real day's work at launch and a rounding error once a collection
+is running. Count-based goals — taps, purchases — stay fixed, because those cost the same
+effort at every tier. The baseline used is `rawGps × baseGlobalMultiplier`, which
+deliberately **excludes** the paid temporary boost, so buying a boost cannot inflate quest
+rewards.
+
+### Periods roll lazily
+
+There is no timer watching for midnight. `rollPeriods()` compares the stored `dailyKey` /
+`weeklyKey` against now and returns a patch when they differ; `addProgress()` calls it
+before adding, so a counter can never land in the wrong day. The Daily screen also calls
+`refreshPeriods()` on mount for the case where the app sat in the background across
+midnight. Daily and weekly roll independently.
+
+Periods use the device's **local** date, which does make the clock the source of truth —
+moving the device clock forward can advance a period. For a single-player offline game
+that is the right trade; if you ever add server-backed accounts, that is the place to
+revisit.
 
 ---
 
@@ -252,6 +296,12 @@ reach for:
 | `TAP_BASE_GPS_SECONDS` | `economy.ts` | 0.05 | Seconds of production a tap is worth at baseline. |
 | `TAP_GPS_SECONDS_PER_UPGRADE` | `economy.ts` | 0.02 | Added per tap upgrade owned. |
 | `perk` on a skin | `skinData.ts` | golden: +10% / +25% | Standing production and tap bonus while the skin is owned. |
+| `STREAK_REWARD_SECONDS` | `dailyData.ts` | 60 → 1,000 | The seven-day streak curve, in seconds of production. |
+| `rewardSeconds` / `rewardFloor` | `dailyData.ts` | per quest | What each quest and the weekly challenge pay. |
+| `productionSeconds` / `floor` | `dailyData.ts` | per quest | Goo targets. Count targets use `amount` instead. |
+| `WELCOME_BACK_PER_HOUR` | `dailyData.ts` | 0.1 | Share of offline goo added per hour away. |
+| `WELCOME_BACK_MAX` | `dailyData.ts` | 1 | Cap on that share. |
+| `WELCOME_BACK_MIN_AWAY_MS` | `dailyData.ts` | 30 min | Below this, no bonus is given. |
 | `firstAdMinLifetimeGoo` | `adService.ts` | 2,500 | Progress gate before any ad can show. |
 | `firstAdMinSessionMs` | `adService.ts` | 4 min | Time gate before the first ad. |
 | `minIntervalMs` | `adService.ts` | 4 min | Floor between any two ads. |
@@ -525,6 +575,11 @@ Be precise about this, because it shapes where to look first if something breaks
 | Save persistence across reload | Verified in browser |
 | Shop purchase flow | Verified in browser |
 | Offline earnings math | Verified in browser |
+| Streak: start, continue, reset after a miss, one claim/day | Verified in browser |
+| Daily/weekly rollover clears counters and claims | Verified in browser |
+| All four rewards claim once, credit goo, then block re-claim | Verified in browser |
+| Welcome-back bonus: none under 30 min, 50% at 5h, capped at 20h | Verified in browser |
+| v5 → v6 save migration (daily fields seeded) | Verified in browser |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

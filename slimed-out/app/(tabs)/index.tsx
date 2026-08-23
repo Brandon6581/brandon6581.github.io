@@ -9,6 +9,7 @@ import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
 import { GameScreen } from '@/src/components/GameScreen';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
+import { readyRewardCount } from '@/src/game/daily';
 import { ownedSkinIds } from '@/src/game/entitlements';
 import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
@@ -147,6 +148,7 @@ export default function HomeScreen() {
   const ownedSummary = SLIMES.filter((s) => (slimes[s.id]?.count ?? 0) > 0);
   const heroLook = resolveLook('basic', SLIME_BY_ID.basic.look, ownedSkins);
   const tapValue = computeTapValue(state);
+  const rewardsReady = readyRewardCount(state);
   const gps = computeGps(state);
   const boostRunning = boostLeft > 0;
 
@@ -216,6 +218,31 @@ export default function HomeScreen() {
       </Text>
 
       <ScrollView contentContainerStyle={[styles.summary, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
+        <Pressable
+          style={styles.dailyCard}
+          onPress={() => router.push('/daily')}
+          accessibilityRole="button"
+          accessibilityLabel={
+            rewardsReady > 0
+              ? `Daily rewards, ${rewardsReady} ready to collect`
+              : 'Daily rewards and quests'
+          }
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dailyTitle}>Daily rewards</Text>
+            <Text style={styles.dailySub}>
+              {rewardsReady > 0
+                ? `${rewardsReady} ready to collect`
+                : 'Streak, quests and this week\u2019s challenge'}
+            </Text>
+          </View>
+          {rewardsReady > 0 && (
+            <View style={styles.dailyBadge}>
+              <Text style={styles.dailyBadgeText}>{rewardsReady}</Text>
+            </View>
+          )}
+        </Pressable>
+
         <Text style={styles.summaryTitle}>Your collection</Text>
         {ownedSummary.length === 0 ? (
           <Text style={styles.empty}>
@@ -306,6 +333,31 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 8,
   },
+  dailyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(20,26,22,0.66)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.accentGold,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    minHeight: 44,
+  },
+  dailyTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
+  dailySub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
+  dailyBadge: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.accentGold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+  },
+  dailyBadgeText: { color: '#241C05', fontSize: 13, fontWeight: '800' },
   summaryTitle: {
     color: theme.textSecondary,
     fontSize: 13,

@@ -1,4 +1,5 @@
 import { ownedItemIds, ownedSkinIds } from './entitlements';
+import { welcomeBackBonus } from './daily';
 import { SKIN_BY_ID } from './skinData';
 import { SHOP_ITEM_BY_ID } from './shopData';
 import { SLIME_BY_ID, SLIMES } from './slimeData';
@@ -167,7 +168,11 @@ export function computeOfflineEarnings(state: GameState, nowMs: number): Offline
 
   const gooEarned = perSecond * (cappedMs / 1000) * OFFLINE_EARNINGS_RATE + Math.max(0, extraFromBoost);
 
-  return { elapsedMs, cappedMs, gooEarned };
+  // Layered on top rather than folded in, so the returning-player summary can
+  // show it as its own line and the two remain separately tunable.
+  const bonus = welcomeBackBonus(gooEarned, elapsedMs);
+
+  return { elapsedMs, cappedMs, gooEarned, welcomeBackBonus: bonus };
 }
 
 export function isSlimeUnlocked(def: SlimeDef, state: GameState): boolean {

@@ -2,6 +2,8 @@
 
 import { SlimeLook } from '@/src/art/slimeLook';
 
+import { DailyCounters } from './daily';
+
 export interface SlimeDef {
   id: string;
   name: string;
@@ -69,6 +71,8 @@ export interface OfflineResult {
   elapsedMs: number;
   cappedMs: number;
   gooEarned: number;
+  /** Extra granted for time away, on top of `gooEarned`. */
+  welcomeBackBonus: number;
 }
 
 export interface GameState {
@@ -102,6 +106,21 @@ export interface GameState {
   boostExpiresAt: number;
   /** Multiplier applied while the boost is running. */
   boostMultiplier: number;
+
+  // ---- Daily engagement ----
+  /** Consecutive days claimed. 0 before the first claim. */
+  streakDays: number;
+  /** Day key of the last streak claim; '' when never claimed. */
+  lastStreakClaimDay: string;
+  /** Day the daily counters belong to; they reset when it changes. */
+  dailyKey: string;
+  dailyCounters: DailyCounters;
+  /** Quest ids already claimed within the current day. */
+  claimedQuestIds: string[];
+  /** Week the weekly counters belong to. */
+  weeklyKey: string;
+  weeklyCounters: DailyCounters;
+  weeklyClaimed: boolean;
 
   /** First-run flow finished (studio splash -> welcome -> naming -> how to play). */
   onboardingComplete: boolean;

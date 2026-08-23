@@ -5,6 +5,19 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEV_GOO_GRANT } from '@/src/dev/devMode';
 
 import { DEFAULT_BACKDROP_ID } from './backgroundData';
+import {
+  addProgress,
+  challengeForWeek,
+  dayKey,
+  emptyCounters,
+  questComplete,
+  questReward,
+  questsForDay,
+  previousDayKey,
+  rollPeriods,
+  streakReward,
+  weekKey,
+} from './daily';
 import { ownsItem } from './entitlements';
 import {
   computeOfflineEarnings,
@@ -54,6 +67,14 @@ function initialState(): GameState {
     ownedSkins: [],
     boostExpiresAt: 0,
     boostMultiplier: 2,
+    streakDays: 0,
+    lastStreakClaimDay: '',
+    dailyKey: dayKey(),
+    dailyCounters: emptyCounters(),
+    claimedQuestIds: [],
+    weeklyKey: weekKey(),
+    weeklyCounters: emptyCounters(),
+    weeklyClaimed: false,
     onboardingComplete: false,
     freeFarmNameUsed: false,
     freeDisplayNameUsed: false,
@@ -92,6 +113,10 @@ interface GameActions {
   setBackdrop: (id: string) => void;
   setFarmName: (name: string) => void;
   setDisplayName: (name: string) => void;
+  claimStreak: () => number | null;
+  claimQuest: (questId: string) => number | null;
+  claimWeekly: () => number | null;
+  refreshPeriods: () => void;
   completeOnboarding: (farmName: string, displayName: string) => void;
   canRenameFarm: () => boolean;
   canRenameSelf: () => boolean;
@@ -129,6 +154,7 @@ export const useGameStore = create<GameStore>()(
           goo: state.goo + value,
           lifetimeGoo: state.lifetimeGoo + value,
           totalTaps,
+          ...addProgress(state, { taps: 1, goo: value }),
           ...(foundSkinId ? { ownedSkins: [...state.ownedSkins, foundSkinId] } : null),
         });
 
@@ -141,7 +167,11 @@ export const useGameStore = create<GameStore>()(
         const gps = rawGps(state) * globalMultiplier(state);
         if (gps <= 0) return;
         const earned = gps * deltaSeconds;
-        set({ goo: state.goo + earned, lifetimeGoo: state.lifetimeGoo + earned });
+        set({
+          goo: state.goo + earned,
+          lifetimeGoo: state.lifetimeGoo + earned,
+          ...addProgress(state, { goo: earned }),
+        });
       },
 
       buySlime: (id: string) => {
@@ -154,6 +184,7 @@ export const useGameStore = create<GameStore>()(
         set({
           goo: state.goo - cost,
           slimes: { ...state.slimes, [id]: { ...owned, count: owned.count + 1 } },
+          ...addProgress(state, { slimes: 1 }),
         });
         return true;
       },
@@ -173,6 +204,7 @@ export const useGameStore = create<GameStore>()(
             ...state.slimes,
             [id]: { ...owned, upgradeLevels: owned.upgradeLevels + 1 },
           },
+          ...addProgress(state, { upgrades: 1 }),
         });
         return true;
       },
@@ -187,6 +219,7 @@ export const useGameStore = create<GameStore>()(
           goo: state.goo - def.cost,
           tapPower: state.tapPower + def.addPower,
           purchasedTapUpgrades: [...state.purchasedTapUpgrades, id],
+          ...addProgress(state, { upgrades: 1 }),
         });
         return true;
       },
@@ -250,10 +283,8 @@ export const useGameStore = create<GameStore>()(
         const result = computeOfflineEarnings(state, t);
         set({ lastSavedAt: t });
         if (result.elapsedMs < MIN_OFFLINE_GAP_MS || result.gooEarned <= 0) return null;
-        set((s) => ({
-          goo: s.goo + result.gooEarned,
-          lifetimeGoo: s.lifetimeGoo + result.gooEarned,
-        }));
+        const total = result.gooEarned + result.welcomeBackBonus;
+        set((s) => ({ goo: s.goo + total, lifetimeGoo: s.lifetimeGoo + total }));
         return result;
       },
 
@@ -296,6 +327,69 @@ export const useGameStore = create<GameStore>()(
           displayName: sanitizeName(name, DEFAULT_DISPLAY_NAME),
           ...(usedFree ? { freeDisplayNameUsed: true } : null),
         });
+      },
+
+      /** Rolls daily/weekly counters if the period changed. Safe to call often. */
+      refreshPeriods: () => {
+        const patch = rollPeriods(get());
+        if (patch) set(patch);
+      },
+
+      /**
+       * Claims today's streak day. Returns the goo granted, or null when today
+       * has already been claimed.
+       */
+      claimStreak: () => {
+        get().refreshPeriods();
+        const state = get();
+        const today = dayKey();
+        if (state.lastStreakClaimDay === today) return null;
+
+        // Yesterday continues the run; anything older starts a new one.
+        const continues = state.lastStreakClaimDay === previousDayKey(today);
+        const streakDays = continues ? state.streakDays + 1 : 1;
+        const reward = streakReward(streakDays, state);
+
+        set({
+          streakDays,
+          lastStreakClaimDay: today,
+          goo: state.goo + reward,
+          lifetimeGoo: state.lifetimeGoo + reward,
+        });
+        return reward;
+      },
+
+      claimQuest: (questId: string) => {
+        get().refreshPeriods();
+        const state = get();
+        const def = questsForDay(state.dailyKey).find((q) => q.id === questId);
+        if (!def) return null;
+        if (state.claimedQuestIds.includes(questId)) return null;
+        if (!questComplete(def, state.dailyCounters, state)) return null;
+
+        const reward = questReward(def, state);
+        set({
+          claimedQuestIds: [...state.claimedQuestIds, questId],
+          goo: state.goo + reward,
+          lifetimeGoo: state.lifetimeGoo + reward,
+        });
+        return reward;
+      },
+
+      claimWeekly: () => {
+        get().refreshPeriods();
+        const state = get();
+        if (state.weeklyClaimed) return null;
+        const def = challengeForWeek(state.weeklyKey);
+        if (!questComplete(def, state.weeklyCounters, state)) return null;
+
+        const reward = questReward(def, state);
+        set({
+          weeklyClaimed: true,
+          goo: state.goo + reward,
+          lifetimeGoo: state.lifetimeGoo + reward,
+        });
+        return reward;
       },
 
       /** First-run naming is free and does not consume the free changes twice. */
@@ -349,7 +443,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 5,
+      version: 6,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -387,6 +481,19 @@ export const useGameStore = create<GameStore>()(
           patched.onboardingComplete ??= true;
           patched.freeFarmNameUsed ??= false;
           patched.freeDisplayNameUsed ??= false;
+        }
+
+        if (fromVersion < 6) {
+          // Daily engagement is new. Start everyone with a clean, current
+          // period rather than backdating anything.
+          patched.streakDays ??= 0;
+          patched.lastStreakClaimDay ??= '';
+          patched.dailyKey ??= dayKey();
+          patched.dailyCounters ??= emptyCounters();
+          patched.claimedQuestIds ??= [];
+          patched.weeklyKey ??= weekKey();
+          patched.weeklyCounters ??= emptyCounters();
+          patched.weeklyClaimed ??= false;
         }
 
         return patched;
