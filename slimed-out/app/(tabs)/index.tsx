@@ -1,7 +1,15 @@
-import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  GestureResponderEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { IvyFrame } from '@/src/art/IvyFrame';
 import { SlimeSprite } from '@/src/art/SlimeSprite';
@@ -9,6 +17,13 @@ import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
 import { BonusRoundModal } from '@/src/components/BonusRoundModal';
 import { CareControls } from '@/src/components/CareControls';
+import {
+  Floater,
+  FloatingValue,
+  MAX_FLOATERS,
+  makeFloater,
+  runFloater,
+} from '@/src/components/FloatingValue';
 import { GameScreen } from '@/src/components/GameScreen';
 import { PopInVisitor } from '@/src/components/PopInVisitor';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
@@ -20,6 +35,7 @@ import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
 import { SLIMES, SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
+import { haptics } from '@/src/feel/haptics';
 import { theme } from '@/src/theme';
 import { computeGps, computeTapValue } from '@/src/game/economy';
 import { formatDuration, formatGps, formatNumber } from '@/src/utils/format';
@@ -46,15 +62,6 @@ import { formatDuration, formatGps, formatNumber } from '@/src/utils/format';
  * the touch target.
  * ============================================================================
  */
-
-interface Floater {
-  id: number;
-  value: number;
-  x: number;
-  anim: Animated.Value;
-}
-
-let floaterId = 0;
 
 export default function HomeScreen() {
   const bottomPad = useTabContentPadding();
@@ -88,6 +95,18 @@ export default function HomeScreen() {
 
   const { eyes, rouse } = useSlimeEyes();
   const [floaters, setFloaters] = useState<Floater[]>([]);
+
+  // Where the stage sits on screen, so a tap's page coordinates can be turned
+  // into stage-local ones. Held in a ref rather than state: it is read during a
+  // tap and must never trigger a re-render of the stage mid-interaction.
+  const stageRef = useRef<View>(null);
+  const stageOrigin = useRef({ x: 0, y: 0 });
+
+  const measureStage = useCallback(() => {
+    stageRef.current?.measureInWindow((x, y) => {
+      stageOrigin.current = { x, y };
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -137,7 +156,7 @@ export default function HomeScreen() {
   const handleCatch = useCallback(() => {
     const result = catchPopIn();
     if (!result) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptics.rareReward();
     const def = VISITOR_BY_ID[result.visitorId];
     setCatchToast(
       result.kind === 'frenzy'
@@ -148,34 +167,50 @@ export default function HomeScreen() {
     setTimeout(() => setCatchToast(null), 3200);
   }, [catchPopIn]);
 
-  const handleTap = useCallback(() => {
-    const { value, foundSkinId: found } = tap();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    rouse();
-    if (found) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setFoundSkinId(found);
-    }
+  const handleTap = useCallback(
+    (event: GestureResponderEvent) => {
+      const { value, foundSkinId: found } = tap();
+      haptics.tap();
+      rouse();
+      if (found) {
+        haptics.rareReward();
+        setFoundSkinId(found);
+      }
 
-    pop.setValue(1);
-    Animated.spring(pop, {
-      toValue: 0,
-      friction: 4.5,
-      tension: 120,
-      useNativeDriver: true,
-    }).start();
+      pop.setValue(1);
+      Animated.spring(pop, {
+        toValue: 0,
+        friction: 4.5,
+        tension: 120,
+        useNativeDriver: true,
+      }).start();
 
-    const anim = new Animated.Value(0);
-    const id = floaterId++;
-    const x = 20 + Math.random() * 60;
-    setFloaters((f) => [...f, { id, value, x, anim }]);
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 850,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start(() => setFloaters((f) => f.filter((x2) => x2.id !== id)));
-  }, [tap, rouse, pop]);
+      // pageX/pageY, converted into stage-local coordinates with the origin
+      // measured at layout.
+      //
+      // The tempting field here is locationX/locationY, which is already
+      // target-relative and would need no conversion - but it does not exist on
+      // react-native-web, where nativeEvent is the raw DOM event. Reading it
+      // yields undefined, `left: undefined` silently falls back to 0, and every
+      // floater piles up in the stage's top-left corner. pageX/pageY is present
+      // on both React Native and the web, so it is the portable choice.
+      const { pageX, pageY } = event.nativeEvent;
+      const origin = stageOrigin.current;
+      const floater = makeFloater(value, pageX - origin.x, pageY - origin.y);
+      setFloaters((current) => {
+        // Oldest out first, so a rapid tapper sees their newest numbers.
+        const trimmed =
+          current.length >= MAX_FLOATERS
+            ? current.slice(current.length - MAX_FLOATERS + 1)
+            : current;
+        return [...trimmed, floater];
+      });
+      runFloater(floater, () =>
+        setFloaters((current) => current.filter((f) => f.id !== floater.id))
+      );
+    },
+    [tap, rouse, pop]
+  );
 
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
   const squishX = pop.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
@@ -215,7 +250,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <View style={styles.stage}>
+      <View ref={stageRef} style={styles.stage} onLayout={measureStage}>
         {/* Decorative gold ivy framing the stage. Behind everything, never
             interactive, corner-only so it cannot cross the slime or the text. */}
         <IvyFrame />
@@ -234,21 +269,7 @@ export default function HomeScreen() {
         {/* ---- Floating goo numbers. Also decorative. ---- */}
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           {floaters.map((f) => (
-            <Animated.Text
-              key={f.id}
-              style={[
-                styles.floater,
-                {
-                  left: `${f.x}%`,
-                  opacity: f.anim.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.9, 0] }),
-                  transform: [
-                    { translateY: f.anim.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
-                  ],
-                },
-              ]}
-            >
-              +{formatNumber(f.value)}
-            </Animated.Text>
+            <FloatingValue key={f.id} floater={f} />
           ))}
         </View>
 
@@ -399,18 +420,6 @@ const styles = StyleSheet.create({
   spriteLayer: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  floater: {
-    // Sits mid-stage so the rise finishes inside the stage instead of
-    // travelling up over the goo counter in the header.
-    position: 'absolute',
-    top: 140,
-    color: '#EAFBD2',
-    fontSize: 24,
-    fontWeight: '800',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   hint: {
     marginTop: 4,

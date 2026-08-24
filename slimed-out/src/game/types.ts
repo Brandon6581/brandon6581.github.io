@@ -88,6 +88,8 @@ export interface GameState {
   createdAt: number;
   lastAdShownAt: number;
   soundEnabled: boolean;
+  /** Vibration on taps and rewards. Ignored where there is no motor. */
+  hapticsEnabled: boolean;
   /** Chosen backdrop variant id; falls back to the free default when unset. */
   selectedBackdropId: string;
 

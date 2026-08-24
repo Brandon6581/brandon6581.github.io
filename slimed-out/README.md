@@ -32,6 +32,9 @@ own, buy upgrades, and keep earning while the app is closed.
   they produced while you were away, capped at 8 hours by default (see
   `src/game/economy.ts`). Come back after a real absence and a **welcome-back
   bonus** is added on top, scaled to how long you were gone.
+- **Feel**: taps give a light haptic tick and a rare find a stronger one, and
+  the goo you earn floats up from wherever your finger landed. Vibration can be
+  turned off in Settings.
 - **Rare visitors** wander onto the tap stage now and then — catch one before it
   leaves for a large payout, or a frenzy that sends production haywire for a few
   minutes. A pity timer guarantees one if it has been too long since the last.

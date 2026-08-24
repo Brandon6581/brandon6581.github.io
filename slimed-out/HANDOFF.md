@@ -22,6 +22,7 @@ are still standing in for the real thing.
 - [Game model](#game-model)
 - [Daily engagement](#daily-engagement)
 - [Live events and achievements](#live-events-and-achievements)
+- [Feel: haptics and floating text](#feel-haptics-and-floating-text)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -136,6 +137,9 @@ src/game/                — pure logic, no UI —
   achievementData.ts     30 milestones and their standing perks
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
+
+src/feel/                — tactile polish —
+  haptics.ts             the one place vibration is decided
 
 src/dev/                 — never ships; stripped at build time —
   devMode.ts             the build gate + activation code
@@ -380,6 +384,46 @@ overlay is clear and `useGameLoop` gates its *cold start* claim on that. Ticking
 is not gated: the game runs underneath the splash so it is warm when the overlay
 lifts. Resume-from-background claims are never gated, because the splash does not
 replay on resume.
+
+---
+
+## Feel: haptics and floating text
+
+### The haptics engine
+
+Every vibration goes through `src/feel/haptics.ts` rather than calling
+`expo-haptics` at the call site. Three reasons, all of which bit at some point in
+similar apps:
+
+- **It can be turned off.** A game whose main verb is tapping buzzes constantly.
+  Settings has a Vibration switch, persisted as `hapticsEnabled` and disabled
+  outright on platforms with no motor.
+- **It never throws.** `expo-haptics` returns a promise that rejects on hardware
+  without a motor. An unhandled rejection inside a tap handler is a crash for a
+  purely decorative effect, so every call is fire-and-forget with the rejection
+  swallowed.
+- **Calls are named for the moment, not the waveform** — `haptics.tap()`,
+  `haptics.rareReward()`. Re-feeling the whole game is one file.
+
+The engine keeps its own copy of the flag so a tap handler never reads the store.
+That copy is pushed on toggle *and* in `onRehydrateStorage`; without the latter, a
+player who turned vibration off would feel one buzz on every launch before the
+setting applied.
+
+### Floating tap text
+
+Numbers spawn at the finger and drift up over 800ms, unmounting themselves via
+the animation's completion callback. Concurrent floaters are capped
+(`MAX_FLOATERS`, oldest dropped) — a fast tapper fires ten-plus taps a second and
+each one is a mounted animated node.
+
+> **The trap, and it is a silent one.** `nativeEvent.locationX` / `locationY` are
+> the obvious fields — already target-relative, no conversion needed. **They do
+> not exist on react-native-web**, where `nativeEvent` is the raw DOM event.
+> Reading them gives `undefined`, `left: undefined` falls back to `0`, and every
+> floater stacks in the stage's top-left corner. Nothing errors. The fix is
+> `pageX` / `pageY`, which both platforms provide, minus a stage origin captured
+> with `measureInWindow` in `onLayout`. This is recorded in `AGENTS.md` too.
 
 ---
 
@@ -709,6 +753,10 @@ Be precise about this, because it shapes where to look first if something breaks
 | Offline summary waits for the splash, lands on dashboard | Verified in browser |
 | Six tabs still legible at 390px | Verified in browser |
 | CI: typecheck, lint, dev-mode strip on every PR | Workflow added; all three verified from a clean tree |
+| Floaters land on the tap point (3 spots, ±3px) | Verified in browser |
+| Floater cap holds at 14 under 30 rapid taps, then clears | Verified in browser |
+| Vibration toggle present, disabled where no motor | Verified in browser |
+| v7 → v8 migration defaults vibration on | Verified in browser |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

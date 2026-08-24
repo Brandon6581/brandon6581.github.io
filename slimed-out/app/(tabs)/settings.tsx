@@ -9,12 +9,15 @@ import { DevPanel } from '@/src/dev/DevPanel';
 import { BACKDROPS, isBackdropUnlocked } from '@/src/game/backgroundData';
 import { adsRemoved, ownedItemIds, ownsItem } from '@/src/game/entitlements';
 import { DEFAULT_DISPLAY_NAME, DEFAULT_FARM_NAME, useGameStore } from '@/src/game/store';
+import { hapticsSupported } from '@/src/feel/haptics';
 import { theme } from '@/src/theme';
 
 export default function SettingsScreen() {
   const bottomPad = useTabContentPadding();
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const toggleSound = useGameStore((s) => s.toggleSound);
+  const hapticsEnabled = useGameStore((s) => s.hapticsEnabled);
+  const toggleHaptics = useGameStore((s) => s.toggleHaptics);
   const resetProgress = useGameStore((s) => s.resetProgress);
   const state = useGameStore();
   const noAdsPurchased = adsRemoved(state);
@@ -115,8 +118,29 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.label}>Sound effects</Text>
-            <Switch value={soundEnabled} onValueChange={toggleSound} />
+            <Switch
+              value={soundEnabled}
+              onValueChange={toggleSound}
+              accessibilityLabel="Sound effects"
+            />
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>Vibration</Text>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={toggleHaptics}
+              disabled={!hapticsSupported()}
+              accessibilityLabel="Vibration"
+            />
+          </View>
+          <Text style={styles.hint}>
+            {hapticsSupported()
+              ? 'A light tick on every tap, and a stronger one for rare finds.'
+              : 'This device has no vibration motor.'}
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -257,6 +281,7 @@ const styles = StyleSheet.create({
   identityLocked: { color: theme.textMuted, fontSize: 12, fontWeight: '600' },
   label: { color: theme.textPrimary, fontSize: 15, fontWeight: '600' },
   value: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
+  hint: { color: theme.textMuted, fontSize: 12, lineHeight: 16, marginTop: 6 },
   actionButton: {
     minHeight: 44,
     justifyContent: 'center',

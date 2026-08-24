@@ -17,3 +17,12 @@ split. Note especially that an `Animated.View` wrapping a `TouchableOpacity` is
 the *same bug in a different shape* - the responder treats finger movement as a
 drag on the animated parent and eats the press. Animate a sibling, never an
 ancestor of the touch target.
+
+# Touch coordinates
+
+`nativeEvent.locationX` / `locationY` **do not exist on react-native-web** -
+there `nativeEvent` is the raw DOM event. Reading them yields `undefined`, which
+silently becomes `0` in a style, so anything positioned from them piles up in a
+corner instead of erroring. Use `pageX` / `pageY`, which both platforms provide,
+and convert to container-local coordinates with a `measureInWindow` origin
+captured in `onLayout`. See `handleTap` in `app/(tabs)/index.tsx`.

@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEV_GOO_GRANT } from '@/src/dev/devMode';
+import { setHapticsEnabled } from '@/src/feel/haptics';
 
 import { DEFAULT_BACKDROP_ID } from './backgroundData';
 import {
@@ -74,6 +75,7 @@ function initialState(): GameState {
     createdAt: t,
     lastAdShownAt: 0,
     soundEnabled: true,
+    hapticsEnabled: true,
     selectedBackdropId: DEFAULT_BACKDROP_ID,
     farmName: DEFAULT_FARM_NAME,
     displayName: DEFAULT_DISPLAY_NAME,
@@ -158,6 +160,7 @@ interface GameActions {
   claimOfflineEarnings: () => OfflineResult | null;
   markAdShown: () => void;
   toggleSound: () => void;
+  toggleHaptics: () => void;
   setBackdrop: (id: string) => void;
   setFarmName: (name: string) => void;
   setDisplayName: (name: string) => void;
@@ -368,6 +371,17 @@ export const useGameStore = create<GameStore>()(
       markAdShown: () => set({ lastAdShownAt: now() }),
 
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
+
+      /**
+       * The engine holds its own copy so a tap handler never has to read the
+       * store, so the flag is pushed to it here as well as on load.
+       */
+      toggleHaptics: () =>
+        set((s) => {
+          const hapticsEnabled = !s.hapticsEnabled;
+          setHapticsEnabled(hapticsEnabled);
+          return { hapticsEnabled };
+        }),
 
       setBackdrop: (id: string) => set({ selectedBackdropId: id }),
 
@@ -604,6 +618,11 @@ export const useGameStore = create<GameStore>()(
           farmName: s.farmName,
           displayName: s.displayName,
           selectedBackdropId: s.selectedBackdropId,
+          // Device preferences are not progress. Someone who turned vibration
+          // off did so because of how it feels in the hand, and wiping a save
+          // is no reason to start buzzing at them again.
+          soundEnabled: s.soundEnabled,
+          hapticsEnabled: s.hapticsEnabled,
           devModeEnabled: s.devModeEnabled,
           onboardingComplete: s.onboardingComplete,
           freeFarmNameUsed: s.freeFarmNameUsed,
@@ -616,7 +635,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 7,
+      version: 8,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -706,7 +725,20 @@ export const useGameStore = create<GameStore>()(
           }
         }
 
+        if (fromVersion < 8) {
+          // Vibration is opt-out: existing players keep the behaviour they
+          // already had, which was haptics always on.
+          patched.hapticsEnabled ??= true;
+        }
+
         return patched;
+      },
+      onRehydrateStorage: () => (state) => {
+        // The engine keeps its own copy of the flag so a tap handler never
+        // touches the store. Push the loaded value across before the first
+        // tap can happen, or a player who turned vibration off would feel it
+        // buzz once on every launch.
+        if (state) setHapticsEnabled(state.hapticsEnabled);
       },
     }
   )
