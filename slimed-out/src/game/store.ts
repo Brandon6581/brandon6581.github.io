@@ -18,16 +18,29 @@ import {
   streakReward,
   weekKey,
 } from './daily';
+import { newlyUnlocked } from './achievements';
 import { ownsItem } from './entitlements';
 import {
+  bonusRoundBase,
   computeOfflineEarnings,
   computeTapValue,
   costForNextSlime,
   costForSlimeUpgrade,
   nextSlimeUpgrade,
+  popInReward,
   rawGps,
   globalMultiplier,
 } from './economy';
+import { BONUS_ROUND_COOLDOWN_MS, CareActionDef, POP_IN_GOLDEN_CHANCE } from './eventData';
+import {
+  bandForPosition,
+  bonusRoundReady,
+  careReady,
+  popInActive,
+  rewardVariance,
+  rollPopIn,
+  visitorDef,
+} from './events';
 import { GOLDEN_FIND_CHANCE, GOLDEN_FIND_MIN_TAPS, GOLDEN_SKIN_ID } from './skinData';
 import { SHOP_ITEM_BY_ID, STARTER_PACK_EXTRA_IDS } from './shopData';
 import { SLIME_BY_ID } from './slimeData';
@@ -67,6 +80,27 @@ function initialState(): GameState {
     ownedSkins: [],
     boostExpiresAt: 0,
     boostMultiplier: 2,
+    popInSlimeId: null,
+    visitorTypeId: null,
+    popInExpiresAt: 0,
+    // Both clocks start now, so the first check is a minute out and the pity
+    // timer does not immediately fire on a brand new save.
+    lastSpawnCheckAt: t,
+    lastSpawnAt: t,
+    popInsCaught: 0,
+    frenzyExpiresAt: 0,
+    frenzyMultiplier: 1,
+    // The first bonus round is available immediately - it doubles as the
+    // tutorial for the mechanic.
+    nextBonusRoundAt: 0,
+    bonusRoundsPlayed: 0,
+    bestBonusMultiplier: 0,
+    lastFedAt: 0,
+    lastPettedAt: 0,
+    timesFed: 0,
+    timesPetted: 0,
+    unlockedAchievements: [],
+    seenAchievements: [],
     streakDays: 0,
     lastStreakClaimDay: '',
     dailyKey: dayKey(),
@@ -98,6 +132,20 @@ export interface TapResult {
   foundSkinId?: string;
 }
 
+export interface CatchResult {
+  visitorId: string;
+  /** Currency pays goo directly; frenzy starts a timed production buff. */
+  kind: 'currency' | 'frenzy';
+  reward: number;
+  foundSkinId?: string;
+}
+
+export interface BonusResult {
+  reward: number;
+  multiplier: number;
+  label: string;
+}
+
 interface GameActions {
   tap: () => TapResult;
   tick: (deltaSeconds: number) => void;
@@ -117,6 +165,11 @@ interface GameActions {
   claimQuest: (questId: string) => number | null;
   claimWeekly: () => number | null;
   refreshPeriods: () => void;
+  catchPopIn: () => CatchResult | null;
+  playBonusRound: (position: number) => BonusResult | null;
+  careFor: (id: CareActionDef['id']) => boolean;
+  syncAchievements: () => void;
+  markAchievementsSeen: () => void;
   completeOnboarding: (farmName: string, displayName: string) => void;
   canRenameFarm: () => boolean;
   canRenameSelf: () => boolean;
@@ -165,13 +218,37 @@ export const useGameStore = create<GameStore>()(
         if (deltaSeconds <= 0) return;
         const state = get();
         const gps = rawGps(state) * globalMultiplier(state);
-        if (gps <= 0) return;
-        const earned = gps * deltaSeconds;
-        set({
-          goo: state.goo + earned,
-          lifetimeGoo: state.lifetimeGoo + earned,
-          ...addProgress(state, { goo: earned }),
-        });
+        const earned = gps > 0 ? gps * deltaSeconds : 0;
+
+        // The visitor schedule and the achievement sweep both ride the tick, so
+        // they keep running even for a player who has not bought a slime yet.
+        const popIn = rollPopIn(state);
+
+        if (earned > 0 || popIn) {
+          set({
+            ...(earned > 0
+              ? {
+                  goo: state.goo + earned,
+                  lifetimeGoo: state.lifetimeGoo + earned,
+                  ...addProgress(state, { goo: earned }),
+                }
+              : null),
+            ...(popIn ?? null),
+          });
+        }
+
+        get().syncAchievements();
+      },
+
+      /**
+       * Records anything that has just come true. Cheap enough to run on every
+       * tick: it is a handful of counter comparisons and writes nothing in the
+       * overwhelmingly common case where nothing changed.
+       */
+      syncAchievements: () => {
+        const found = newlyUnlocked(get());
+        if (found.length === 0) return;
+        set((s) => ({ unlockedAchievements: [...s.unlockedAchievements, ...found] }));
       },
 
       buySlime: (id: string) => {
@@ -392,6 +469,99 @@ export const useGameStore = create<GameStore>()(
         return reward;
       },
 
+      /**
+       * Catches the visiting slime. Returns what it paid, or null when there
+       * was nobody there - which is what makes a double tap harmless.
+       */
+      catchPopIn: () => {
+        const state = get();
+        const def = visitorDef(state);
+        if (!def || !popInActive(state)) return null;
+
+        // A catch is a second, better-odds route to the rare variant than the
+        // tap-find, but it still cannot hand out a duplicate.
+        const foundSkinId =
+          !state.ownedSkins.includes(GOLDEN_SKIN_ID) && Math.random() < POP_IN_GOLDEN_CHANCE
+            ? GOLDEN_SKIN_ID
+            : undefined;
+
+        const cleared = {
+          popInSlimeId: null,
+          visitorTypeId: null,
+          popInExpiresAt: 0,
+          popInsCaught: state.popInsCaught + 1,
+          ...(foundSkinId ? { ownedSkins: [...state.ownedSkins, foundSkinId] } : null),
+        };
+
+        if (def.reward.kind === 'frenzy') {
+          // Frenzy replaces rather than stacks: catching two in a row should
+          // refresh the window, not multiply into something absurd.
+          set({
+            ...cleared,
+            frenzyExpiresAt: now() + def.reward.durationMs,
+            frenzyMultiplier: def.reward.multiplier,
+          });
+          get().syncAchievements();
+          return { visitorId: def.id, kind: 'frenzy' as const, reward: 0, foundSkinId };
+        }
+
+        const reward = popInReward(state, def, rewardVariance());
+        set({
+          ...cleared,
+          goo: state.goo + reward,
+          lifetimeGoo: state.lifetimeGoo + reward,
+          ...addProgress(state, { goo: reward }),
+        });
+        get().syncAchievements();
+        return { visitorId: def.id, kind: 'currency' as const, reward, foundSkinId };
+      },
+
+      /**
+       * Scores a bonus round stopped at `position` (0..1 across the bar) and
+       * starts the cooldown. Returns null when no round was available, so a
+       * replayed screen cannot pay twice.
+       */
+      playBonusRound: (position: number) => {
+        const state = get();
+        if (!bonusRoundReady(state)) return null;
+
+        const band = bandForPosition(position);
+        const reward = Math.ceil(bonusRoundBase(state) * band.multiplier);
+
+        set({
+          nextBonusRoundAt: now() + BONUS_ROUND_COOLDOWN_MS,
+          bonusRoundsPlayed: state.bonusRoundsPlayed + 1,
+          bestBonusMultiplier: Math.max(state.bestBonusMultiplier, band.multiplier),
+          goo: state.goo + reward,
+          lifetimeGoo: state.lifetimeGoo + reward,
+          ...addProgress(state, { goo: reward }),
+        });
+        get().syncAchievements();
+        return { reward, multiplier: band.multiplier, label: band.label };
+      },
+
+      /**
+       * Feeds or pets the slimes, starting both the buff and its cooldown from
+       * the same timestamp. Returns false when the action is still resting.
+       */
+      careFor: (id: CareActionDef['id']) => {
+        const state = get();
+        if (!careReady(state, id)) return false;
+        const t = now();
+        set(
+          id === 'feed'
+            ? { lastFedAt: t, timesFed: state.timesFed + 1 }
+            : { lastPettedAt: t, timesPetted: state.timesPetted + 1 }
+        );
+        get().syncAchievements();
+        return true;
+      },
+
+      /** Clears the achievements badge once the player has seen the list. */
+      markAchievementsSeen: () => {
+        set((s) => ({ seenAchievements: [...s.unlockedAchievements] }));
+      },
+
       /** First-run naming is free and does not consume the free changes twice. */
       completeOnboarding: (farmName: string, displayName: string) => {
         set({
@@ -421,7 +591,10 @@ export const useGameStore = create<GameStore>()(
       },
 
       resetProgress: () => {
-        // Progress resets; paid entitlements and the names attached to them do not.
+        // Progress resets; paid entitlements and the names attached to them do
+        // not. Achievements go with progress: they are earned from the counters
+        // that are about to be zeroed, so keeping them would leave permanent
+        // perks attached to a run that no longer exists.
         const s = get();
         set({
           ...initialState(),
@@ -443,7 +616,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 6,
+      version: 7,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -494,6 +667,43 @@ export const useGameStore = create<GameStore>()(
           patched.weeklyKey ??= weekKey();
           patched.weeklyCounters ??= emptyCounters();
           patched.weeklyClaimed ??= false;
+        }
+
+        if (fromVersion < 7) {
+          // Live events and achievements are new. Start the spawn clocks at the
+          // current moment rather than 0 - a zero would read as "never spawned"
+          // and fire the pity timer the instant an existing player opened the
+          // app. Achievements are left empty and the first tick backfills every
+          // one the player has already earned.
+          const t = now();
+          patched.popInSlimeId ??= null;
+          patched.visitorTypeId ??= null;
+          patched.popInExpiresAt ??= 0;
+          patched.lastSpawnCheckAt ??= t;
+          patched.lastSpawnAt ??= t;
+          patched.popInsCaught ??= 0;
+          patched.frenzyExpiresAt ??= 0;
+          patched.frenzyMultiplier ??= 1;
+          patched.nextBonusRoundAt ??= 0;
+          patched.bonusRoundsPlayed ??= 0;
+          patched.bestBonusMultiplier ??= 0;
+          patched.lastFedAt ??= 0;
+          patched.lastPettedAt ??= 0;
+          patched.timesFed ??= 0;
+          patched.timesPetted ??= 0;
+          patched.unlockedAchievements ??= [];
+          patched.seenAchievements ??= [];
+
+          // Backfill everything this player already earned before the feature
+          // existed, and mark it seen in the same pass - otherwise a long-time
+          // player opens the app to a badge counting two dozen things they did
+          // months ago. This runs once, here, rather than on every rehydrate,
+          // so it can never clear a badge the player genuinely has not read.
+          const earned = newlyUnlocked(patched as GameState);
+          if (earned.length > 0) {
+            patched.unlockedAchievements = [...patched.unlockedAchievements, ...earned];
+            patched.seenAchievements = [...patched.unlockedAchievements];
+          }
         }
 
         return patched;

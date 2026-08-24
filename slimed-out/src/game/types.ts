@@ -122,6 +122,41 @@ export interface GameState {
   weeklyCounters: DailyCounters;
   weeklyClaimed: boolean;
 
+  // ---- Live events ----
+  /** Which roster slime is wearing the visitor look, or null when none. */
+  popInSlimeId: string | null;
+  /** Which entry of RARE_VISITORS is visiting. */
+  visitorTypeId: string | null;
+  /** When the current visitor leaves. */
+  popInExpiresAt: number;
+  /** When the spawn engine last ran a check. Persisted so a reload cannot re-roll. */
+  lastSpawnCheckAt: number;
+  /** When a visitor last spawned, driving the pity timer. */
+  lastSpawnAt: number;
+  popInsCaught: number;
+
+  /** Frenzy buff from a caught Glitch Slime. */
+  frenzyExpiresAt: number;
+  frenzyMultiplier: number;
+
+  /** When the next free bonus round unlocks. */
+  nextBonusRoundAt: number;
+  bonusRoundsPlayed: number;
+  /** Best accuracy multiplier ever landed, for the achievement. */
+  bestBonusMultiplier: number;
+
+  /** Care timestamps. Cooldown and buff duration both derive from these. */
+  lastFedAt: number;
+  lastPettedAt: number;
+  timesFed: number;
+  timesPetted: number;
+
+  // ---- Achievements ----
+  /** Permanently unlocked achievement ids. Never cleared. */
+  unlockedAchievements: string[];
+  /** Which of those the player has actually looked at, for the tab badge. */
+  seenAchievements: string[];
+
   /** First-run flow finished (studio splash -> welcome -> naming -> how to play). */
   onboardingComplete: boolean;
   /** Each player gets one free naming; further changes need the shop item. */

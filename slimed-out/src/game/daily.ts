@@ -1,4 +1,4 @@
-import { baseGlobalMultiplier, rawGps } from './economy';
+import { steadyGps } from './economy';
 import {
   DAILY_QUESTS,
   QuestDef,
@@ -82,11 +82,6 @@ export function questsForDay(key: string): QuestDef[] {
 
 export function challengeForWeek(key: string): QuestDef {
   return WEEKLY_CHALLENGES[hash(key) % WEEKLY_CHALLENGES.length];
-}
-
-/** Production per second excluding any temporary boost - the stable baseline. */
-function steadyGps(state: GameState): number {
-  return rawGps(state) * baseGlobalMultiplier(state);
 }
 
 /** Resolves a quest's target against the player's current production. */

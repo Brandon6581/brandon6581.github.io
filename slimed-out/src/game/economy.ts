@@ -1,5 +1,13 @@
+import { achievementPerks } from './achievements';
 import { ownedItemIds, ownedSkinIds } from './entitlements';
 import { welcomeBackBonus } from './daily';
+import {
+  BONUS_BASE_FLOOR,
+  BONUS_BASE_SECONDS,
+  CARE_ACTIONS,
+  RareVisitorDef,
+} from './eventData';
+import { careBuffActive, careBuffExpiresAt, careMultipliers } from './events';
 import { SKIN_BY_ID } from './skinData';
 import { SHOP_ITEM_BY_ID } from './shopData';
 import { SLIME_BY_ID, SLIMES } from './slimeData';
@@ -73,17 +81,82 @@ export function boostMultiplier(state: GameState, nowMs: number = Date.now()): n
 }
 
 /**
- * Everything that scales production, excluding the temporary boost. Offline
- * earnings need this separately so the boost can be credited only for the
- * slice of time it was actually running.
+ * A production multiplier that runs out. The paid boost and the care buffs are
+ * both of this shape, and offline earnings credit each one only for the slice
+ * of the window it actually covered.
+ */
+export interface TimedBuff {
+  expiresAt: number;
+  multiplier: number;
+}
+
+export function isFrenzyActive(state: GameState, nowMs: number = Date.now()): boolean {
+  return state.frenzyExpiresAt > nowMs;
+}
+
+/** Frenzy multiplier from a caught Glitch Slime, or 1 when none is running. */
+export function frenzyMultiplier(state: GameState, nowMs: number = Date.now()): number {
+  return isFrenzyActive(state, nowMs) ? state.frenzyMultiplier : 1;
+}
+
+/** Every timed production buff currently running. */
+export function activeTimedBuffs(state: GameState, nowMs: number = Date.now()): TimedBuff[] {
+  const buffs: TimedBuff[] = [];
+  if (isBoostActive(state, nowMs)) {
+    buffs.push({ expiresAt: state.boostExpiresAt, multiplier: state.boostMultiplier });
+  }
+  if (isFrenzyActive(state, nowMs)) {
+    buffs.push({ expiresAt: state.frenzyExpiresAt, multiplier: state.frenzyMultiplier });
+  }
+  for (const def of CARE_ACTIONS) {
+    if (def.productionBonus <= 0) continue;
+    if (!careBuffActive(state, def.id, nowMs)) continue;
+    buffs.push({ expiresAt: careBuffExpiresAt(state, def.id), multiplier: 1 + def.productionBonus });
+  }
+  return buffs;
+}
+
+/** Combined temporary multiplier: paid boost, frenzy and any care buff. */
+export function temporaryMultiplier(state: GameState, nowMs: number = Date.now()): number {
+  return (
+    boostMultiplier(state, nowMs) *
+    frenzyMultiplier(state, nowMs) *
+    careMultipliers(state, nowMs).production
+  );
+}
+
+/**
+ * Everything that scales production *permanently*: collection milestones, paid
+ * standing bonuses, collectible perks and unlocked achievements.
+ *
+ * Timed effects are deliberately excluded. Two things depend on that: offline
+ * earnings need the steady rate so a buff can be credited only for the slice of
+ * time it was actually running, and daily quest targets and rewards are sized
+ * off this so that drinking a boost cannot inflate what a quest pays.
  */
 export function baseGlobalMultiplier(state: GameState): number {
-  return globalMilestoneMultiplier(state) * shopGlobalMultiplier(state) * skinGlobalMultiplier(state);
+  return (
+    globalMilestoneMultiplier(state) *
+    shopGlobalMultiplier(state) *
+    skinGlobalMultiplier(state) *
+    achievementPerks(state).production
+  );
 }
 
 /** Full multiplier including any running boost. Use for live play and display. */
 export function globalMultiplier(state: GameState, nowMs: number = Date.now()): number {
-  return baseGlobalMultiplier(state) * boostMultiplier(state, nowMs);
+  return baseGlobalMultiplier(state) * temporaryMultiplier(state, nowMs);
+}
+
+/**
+ * Production per second excluding every timed buff - the stable baseline.
+ *
+ * This is the figure every scaled reward is sized against (daily quests,
+ * streaks, pop-ins, bonus rounds), which is what stops a running boost from
+ * inflating what those hand out.
+ */
+export function steadyGps(state: GameState): number {
+  return rawGps(state) * baseGlobalMultiplier(state);
 }
 
 /** Production per second before any global multiplier. */
@@ -126,7 +199,11 @@ export function tapGpsSeconds(state: GameState): number {
  * output. The golden variant adds a further bonus on the flat part.
  */
 export function computeTapValue(state: GameState, nowMs: number = Date.now()): number {
-  const flat = state.tapPower * skinPerkMultipliers(state).tap * globalMultiplier(state, nowMs);
+  const tapPerks =
+    skinPerkMultipliers(state).tap *
+    achievementPerks(state).tap *
+    careMultipliers(state, nowMs).tap;
+  const flat = state.tapPower * tapPerks * globalMultiplier(state, nowMs);
   const share = computeGps(state, nowMs) * tapGpsSeconds(state);
   return flat + share;
 }
@@ -146,9 +223,11 @@ export function offlineCapHours(state: GameState): number {
 /**
  * Goo earned while the app was closed, capped and discounted.
  *
- * A running boost is credited only for the part of the offline window it
+ * A running timed buff is credited only for the part of the offline window it
  * actually covered - buying an hour of double goo and then closing the app
- * should still pay out, but it must not silently double the entire window.
+ * should still pay out, but it must not silently double the entire window. The
+ * paid boost and any care buff are handled identically here; adding another
+ * timed buff means adding it to `activeTimedBuffs` and nothing else.
  */
 export function computeOfflineEarnings(state: GameState, nowMs: number): OfflineResult {
   const elapsedMs = Math.max(0, nowMs - state.lastSavedAt);
@@ -158,21 +237,40 @@ export function computeOfflineEarnings(state: GameState, nowMs: number): Offline
   const perSecond = rawGps(state) * baseGlobalMultiplier(state);
   const windowStart = nowMs - cappedMs;
 
-  // Overlap between [windowStart, nowMs] and the boost's remaining life.
-  const boostOverlapMs = Math.max(
-    0,
-    Math.min(nowMs, state.boostExpiresAt) - Math.max(windowStart, state.lastSavedAt)
-  );
-  const extraFromBoost =
-    perSecond * (boostOverlapMs / 1000) * (state.boostMultiplier - 1) * OFFLINE_EARNINGS_RATE;
+  // Each buff earns its extra only across the overlap between the credited
+  // window [windowStart, nowMs] and the buff's own remaining life.
+  let extraFromBuffs = 0;
+  for (const buff of activeTimedBuffs(state, state.lastSavedAt)) {
+    const overlapMs = Math.max(
+      0,
+      Math.min(nowMs, buff.expiresAt) - Math.max(windowStart, state.lastSavedAt)
+    );
+    extraFromBuffs += perSecond * (overlapMs / 1000) * (buff.multiplier - 1) * OFFLINE_EARNINGS_RATE;
+  }
 
-  const gooEarned = perSecond * (cappedMs / 1000) * OFFLINE_EARNINGS_RATE + Math.max(0, extraFromBoost);
+  const gooEarned = perSecond * (cappedMs / 1000) * OFFLINE_EARNINGS_RATE + Math.max(0, extraFromBuffs);
 
   // Layered on top rather than folded in, so the returning-player summary can
   // show it as its own line and the two remain separately tunable.
   const bonus = welcomeBackBonus(gooEarned, elapsedMs);
 
   return { elapsedMs, cappedMs, gooEarned, welcomeBackBonus: bonus };
+}
+
+/**
+ * Payouts for the live-interaction events, sized in seconds of steady
+ * production with a floor - the same rule the daily rewards follow, so none of
+ * them decays into a rounding error as a collection grows.
+ */
+export function popInReward(state: GameState, def: RareVisitorDef, variance = 1): number {
+  if (def.reward.kind !== 'currency') return 0;
+  const scaled = steadyGps(state) * def.reward.seconds * variance;
+  return Math.max(Math.ceil(def.reward.floor * variance), Math.ceil(scaled));
+}
+
+/** Base payout of a bonus round, before the accuracy multiplier is applied. */
+export function bonusRoundBase(state: GameState): number {
+  return Math.max(BONUS_BASE_FLOOR, Math.ceil(steadyGps(state) * BONUS_BASE_SECONDS));
 }
 
 export function isSlimeUnlocked(def: SlimeDef, state: GameState): boolean {

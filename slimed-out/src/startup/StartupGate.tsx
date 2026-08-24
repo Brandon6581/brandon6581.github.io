@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useGameStore } from '@/src/game/store';
 
@@ -15,7 +15,15 @@ type Phase = 'brand' | 'onboarding' | 'ready';
  * the tab tree never has to know about it and there is no navigation state to
  * unwind when it finishes.
  */
-export function StartupGate({ children }: { children: React.ReactNode }) {
+export function StartupGate({
+  children,
+  onBrandComplete,
+}: {
+  children: React.ReactNode;
+  /** Fired once nothing is covering the game any more, so the welcome-back
+   *  summary can land on the dashboard rather than behind an opaque overlay. */
+  onBrandComplete?: () => void;
+}) {
   const onboardingComplete = useGameStore((s) => s.onboardingComplete);
   const completeOnboarding = useGameStore((s) => s.completeOnboarding);
   const hasHydrated = useGameStore.persist.hasHydrated();
@@ -24,6 +32,16 @@ export function StartupGate({ children }: { children: React.ReactNode }) {
   const handleBrandDone = useCallback(() => {
     setPhase('onboarding');
   }, []);
+
+  // The studio card always shows; onboarding only shows on a first run. The
+  // gate is clear once the card is done and onboarding is either finished or
+  // was never needed.
+  const showingOnboarding = phase === 'onboarding' && hasHydrated && !onboardingComplete;
+  const gateClear = phase !== 'brand' && !showingOnboarding;
+
+  useEffect(() => {
+    if (gateClear) onBrandComplete?.();
+  }, [gateClear, onBrandComplete]);
 
   const handleFinish = useCallback(
     (farm: string, display: string) => {
@@ -41,9 +59,7 @@ export function StartupGate({ children }: { children: React.ReactNode }) {
       {phase === 'brand' && <BrandSplash onDone={handleBrandDone} />}
       {/* Wait for the save to load before deciding - otherwise a returning
           player briefly gets sent through first-run onboarding. */}
-      {phase === 'onboarding' && hasHydrated && !onboardingComplete && (
-        <Onboarding onFinish={handleFinish} />
-      )}
+      {showingOnboarding && <Onboarding onFinish={handleFinish} />}
     </>
   );
 }

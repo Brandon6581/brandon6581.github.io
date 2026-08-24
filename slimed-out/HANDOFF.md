@@ -21,6 +21,7 @@ are still standing in for the real thing.
 - [Art system](#art-system)
 - [Game model](#game-model)
 - [Daily engagement](#daily-engagement)
+- [Live events and achievements](#live-events-and-achievements)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -103,6 +104,7 @@ app/(tabs)/              five screens, Expo Router file-based tabs
   shop.tsx               real-money storefront
   settings.tsx           backdrop picker, restore, reset
 app/slime/[id].tsx       character card: portrait, lore, stats
+  achievements.tsx       permanent milestone list, some with standing perks
 app/daily.tsx            login streak, daily quests, weekly challenge
 
 src/startup/             first-run flow, shown above the navigator
@@ -128,6 +130,10 @@ src/game/                — pure logic, no UI —
   economy.ts             all formulas: cost, gps, offline
   daily.ts               period boundaries, counters, streak + reward math
   dailyData.ts           quest pools, streak table, welcome-back constants
+  events.ts              spawn engine, bonus scoring, care cooldowns
+  eventData.ts           visitor pool, spawn odds, bands, care actions
+  achievements.ts        evaluation + perk totals (never imports economy)
+  achievementData.ts     30 milestones and their standing perks
   store.ts               Zustand store, AsyncStorage-persisted
   useGameLoop.ts         1s tick, background/foreground, offline
 
@@ -281,6 +287,102 @@ revisit.
 
 ---
 
+## Live events and achievements
+
+Four features that make the screen worth looking at rather than leaving open.
+
+### The rare visitor
+
+A slime turns up on the tap stage and pays out if it is caught before it
+wanders off. The spawn engine (`events.ts`) checks **once a minute**, not
+continuously, and two rules decide the outcome: a flat 10% chance per check, and
+a **pity timer** that forces a spawn once 15 minutes have passed without one.
+The pity timer exists because a run of bad luck reads to a player as the feature
+being broken rather than as variance.
+
+Both clocks live in persisted state, deliberately. Module-level counters would
+reset on reload, which turns "wait for a spawn" into "restart the app to
+re-roll".
+
+| Visitor | Weight | On screen | Pays |
+|---|---|---|---|
+| Gilded Slime | 70 | 25s | 10 minutes of production |
+| Glitch Slime | 25 | 20s | ×5 frenzy for 3 minutes |
+| Cosmic Slime | 5 | 15s | 1 hour of production |
+
+Rarer visitors pay more and linger less, so the best prize is also the hardest to
+catch. Payouts carry a ±10% wobble so the number varies run to run. A catch is
+also a second, better-odds route to the golden collectible than the tap-find.
+
+> **Naming, on purpose:** the gilded visitor is not called "Golden Slime". The
+> collection already has a golden variant — a permanent skin with its own
+> standing perk — and one word for two unrelated things would be confusing in
+> the UI.
+
+> **Worth watching in tuning:** at roughly one spawn per 10 minutes averaged
+> against the pity timer, an attentive player catching most Gilded visitors
+> earns on the order of an extra hour of production per hour played. That is a
+> deliberate "active play beats idle" choice, not an accident, but it is the
+> single biggest lever in the game's balance. `RARE_VISITORS[].reward.seconds`
+> is the dial.
+
+### The bonus round
+
+A marker sweeps a bar; stopping it near the centre multiplies the payout (×5
+down to ×0.5). The catch-all band means a mistimed round always pays something,
+so the button stays worth pressing. Free every 30 minutes.
+
+The subtlety worth preserving: **what is drawn and what is scored come from the
+same `sweepPosition()` function.** Reading a native-driver animated value back on
+the JS side is throttled, and in a game where the top band is 3% of the bar, a
+frame of disagreement is the difference between Perfect and Nice.
+
+### Slime care
+
+Feed (+25% production for 30 min, 4h cooldown) and pet (+50% tap power for 10
+min, 45m cooldown). The cooldown is deliberately longer than the buff, so there
+is a gap where the slimes are neither buffed nor ready — otherwise it is just a
+permanent multiplier the player has to remember to re-press.
+
+### Achievements
+
+30 permanent milestones across six categories, unlocking on their own with
+nothing to claim. Roughly a third carry a small standing perk, totalling about
++55% production and +45% tap power for a complete set. This is free progression
+by design — the brief was that there should be a lot to earn without spending.
+
+`achievements.ts` **must never import `economy.ts`.** economy reads the perk
+totals from it, and a runtime cycle would leave one of the two undefined at
+module init depending on which Metro loads first. That is why every predicate
+reads a plain counter rather than a derived figure, and why the two small
+helpers at the top of `achievementData.ts` are inlined rather than imported.
+
+### Where the multipliers go
+
+This distinction decides whether a bonus inflates quest rewards, so it matters:
+
+| Kind | Goes in | Examples |
+|---|---|---|
+| **Permanent** | `baseGlobalMultiplier` | collection milestones, paid standing bonuses, skin perks, achievements |
+| **Timed** | `temporaryMultiplier` | paid boost, frenzy, feed buff |
+
+Daily quest targets and rewards are sized off the *base* figure, so a running
+buff can never inflate what a quest pays. Offline earnings credit each timed buff
+only for the slice of the window it actually covered; adding another timed buff
+means adding it to `activeTimedBuffs()` and nothing else.
+
+### Startup order
+
+The offline summary waits for the studio card — and first-run onboarding — to
+clear before it appears, so it lands on the dashboard rather than animating in
+behind an opaque overlay where nobody sees it. `StartupGate` reports when the
+overlay is clear and `useGameLoop` gates its *cold start* claim on that. Ticking
+is not gated: the game runs underneath the splash so it is warm when the overlay
+lifts. Resume-from-background claims are never gated, because the splash does not
+replay on resume.
+
+---
+
 ## Tuning
 
 Balance changes are data edits, not code changes. These are the knobs you will actually
@@ -302,6 +404,14 @@ reach for:
 | `WELCOME_BACK_PER_HOUR` | `dailyData.ts` | 0.1 | Share of offline goo added per hour away. |
 | `WELCOME_BACK_MAX` | `dailyData.ts` | 1 | Cap on that share. |
 | `WELCOME_BACK_MIN_AWAY_MS` | `dailyData.ts` | 30 min | Below this, no bonus is given. |
+| `BASE_SPAWN_CHANCE` | `eventData.ts` | 0.10 | Visitor odds per one-minute check. |
+| `PITY_THRESHOLD_MS` | `eventData.ts` | 15 min | Forced spawn after a dry spell. |
+| `RARE_VISITORS[].reward` | `eventData.ts` | 600s / ×5 / 3600s | **The biggest balance lever in the game.** |
+| `RARE_VISITORS[].weight` | `eventData.ts` | 70 / 25 / 5 | Draw odds within the pool. |
+| `BONUS_ROUND_COOLDOWN_MS` | `eventData.ts` | 30 min | How often a free round comes back. |
+| `BONUS_BANDS` | `eventData.ts` | ×5 → ×0.5 | Accuracy bands and their payouts. |
+| `CARE_ACTIONS` | `eventData.ts` | +25% / +50% | Feed and pet strength, duration, cooldown. |
+| `perk` on an achievement | `achievementData.ts` | ~+55% / +45% total | Free permanent progression. |
 | `firstAdMinLifetimeGoo` | `adService.ts` | 2,500 | Progress gate before any ad can show. |
 | `firstAdMinSessionMs` | `adService.ts` | 4 min | Time gate before the first ad. |
 | `minIntervalMs` | `adService.ts` | 4 min | Floor between any two ads. |
@@ -580,6 +690,18 @@ Be precise about this, because it shapes where to look first if something breaks
 | All four rewards claim once, credit goo, then block re-claim | Verified in browser |
 | Welcome-back bonus: none under 30 min, 50% at 5h, capped at 20h | Verified in browser |
 | v5 → v6 save migration (daily fields seeded) | Verified in browser |
+| Pity timer forces a spawn; catch pays and clears | Verified in browser |
+| Catch target does not swallow taps (5/5 with wobble) | Verified in browser |
+| Double-catch blocked once the visitor is gone | Verified in browser |
+| Bonus round: scoring, cooldown, no double payout | Verified in browser |
+| Sweep/band/variance/weighting maths | Unit tested — 22/22 pass |
+| Visitor weights land on 70.4 / 24.6 / 5.1 over 200k draws | Unit tested |
+| Feed raises production exactly +25% (25.4 → 31.8/s) | Verified in browser |
+| Care re-press refused while on cooldown | Verified in browser |
+| v6 → v7 migration backfills 15 achievements, marks seen | Verified in browser |
+| Achievement perks reach the live production figure | Verified in browser |
+| Offline summary waits for the splash, lands on dashboard | Verified in browser |
+| Six tabs still legible at 390px | Verified in browser |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

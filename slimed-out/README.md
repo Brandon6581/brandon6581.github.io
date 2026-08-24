@@ -32,6 +32,17 @@ own, buy upgrades, and keep earning while the app is closed.
   they produced while you were away, capped at 8 hours by default (see
   `src/game/economy.ts`). Come back after a real absence and a **welcome-back
   bonus** is added on top, scaled to how long you were gone.
+- **Rare visitors** wander onto the tap stage now and then — catch one before it
+  leaves for a large payout, or a frenzy that sends production haywire for a few
+  minutes. A pity timer guarantees one if it has been too long since the last.
+- **Bonus round** (Home tab, free every 30 minutes): stop a sweeping marker as
+  close to the centre as you can for up to a 5x payout.
+- **Feed and pet** your slimes for short production and tap-power buffs, each on
+  its own cooldown.
+- **Awards** tab: 30 permanent achievements across six categories. They unlock
+  on their own with nothing to claim, and about a third carry a small permanent
+  bonus — free progression that adds up to roughly +55% production and +45% tap
+  power for a complete set.
 - **Daily** (card on the Home tab) collects the retention loop: a login streak
   with rewards that grow across seven consecutive days and reset if you miss
   one, three quests drawn fresh each day from a pool of eight, and a bigger
@@ -74,7 +85,8 @@ a real release.
 ## Project structure
 
 ```
-app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Shop, Settings
+app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Awards, Shop,
+                     Settings
 app/daily.tsx        Login streak, daily quests, weekly challenge
 src/art/             Code-drawn SVG: slime sprites, toppers, backdrops
 src/game/            Data + pure logic: slimes, upgrades, shop, skins,

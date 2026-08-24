@@ -22,6 +22,7 @@ const MAPPING = {
   'bolt.fill': 'bolt',
   'cart.fill': 'shopping-cart',
   'gearshape.fill': 'settings',
+  rosette: 'military-tech',
 } as IconMapping;
 
 /**

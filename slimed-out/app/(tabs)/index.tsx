@@ -7,9 +7,14 @@ import { IvyFrame } from '@/src/art/IvyFrame';
 import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { useSlimeEyes } from '@/src/art/useSlimeEyes';
 import { useAdGate } from '@/src/components/AdGateProvider';
+import { BonusRoundModal } from '@/src/components/BonusRoundModal';
+import { CareControls } from '@/src/components/CareControls';
 import { GameScreen } from '@/src/components/GameScreen';
+import { PopInVisitor } from '@/src/components/PopInVisitor';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
 import { readyRewardCount } from '@/src/game/daily';
+import { VISITOR_BY_ID } from '@/src/game/eventData';
+import { bonusRoundReady, bonusRoundWaitMs, popInActive, visitorDef } from '@/src/game/events';
 import { ownedSkinIds } from '@/src/game/entitlements';
 import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
@@ -65,6 +70,16 @@ export default function HomeScreen() {
   const router = useRouter();
   const [foundSkinId, setFoundSkinId] = useState<string | null>(null);
   const [boostLeft, setBoostLeft] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [bonusOpen, setBonusOpen] = useState(false);
+  const [catchToast, setCatchToast] = useState<string | null>(null);
+
+  const catchPopIn = useGameStore((s) => s.catchPopIn);
+  const playBonusRound = useGameStore((s) => s.playBonusRound);
+  const popInSlimeId = useGameStore((s) => s.popInSlimeId);
+  const popInExpiresAt = useGameStore((s) => s.popInExpiresAt);
+  const frenzyExpiresAt = useGameStore((s) => s.frenzyExpiresAt);
+  const frenzyMult = useGameStore((s) => s.frenzyMultiplier);
 
   // Two independent drivers so a tap reaction can never interrupt the idle
   // loop (and vice versa) - they are composed, not shared.
@@ -112,6 +127,27 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [boostExpiresAt]);
 
+  // One shared clock for everything that counts down on this screen: the care
+  // cooldowns, the frenzy badge, and the bonus-round button.
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCatch = useCallback(() => {
+    const result = catchPopIn();
+    if (!result) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const def = VISITOR_BY_ID[result.visitorId];
+    setCatchToast(
+      result.kind === 'frenzy'
+        ? `${def.name} caught! Production going haywire.`
+        : `${def.name} caught! +${formatNumber(result.reward)} goo`
+    );
+    if (result.foundSkinId) setFoundSkinId(result.foundSkinId);
+    setTimeout(() => setCatchToast(null), 3200);
+  }, [catchPopIn]);
+
   const handleTap = useCallback(() => {
     const { value, foundSkinId: found } = tap();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -151,6 +187,11 @@ export default function HomeScreen() {
   const rewardsReady = readyRewardCount(state);
   const gps = computeGps(state);
   const boostRunning = boostLeft > 0;
+  const frenzyLeft = Math.max(0, frenzyExpiresAt - nowMs);
+  const visitor = visitorDef(state);
+  const visitorHere = visitor != null && popInActive(state, nowMs);
+  const bonusReady = bonusRoundReady(state, nowMs);
+  const bonusWait = bonusRoundWaitMs(state, nowMs);
 
   return (
     <GameScreen title={farmName}>
@@ -159,6 +200,18 @@ export default function HomeScreen() {
           <Text style={styles.boostText}>
             {boostMult}x goo · {formatDuration(boostLeft)} left
           </Text>
+        </View>
+      )}
+      {frenzyLeft > 0 && (
+        <View style={[styles.boostBadge, styles.frenzyBadge]}>
+          <Text style={[styles.boostText, styles.frenzyText]}>
+            FRENZY {frenzyMult}x · {formatDuration(frenzyLeft)} left
+          </Text>
+        </View>
+      )}
+      {catchToast && (
+        <View style={styles.catchToast} accessibilityLiveRegion="polite">
+          <Text style={styles.catchToastText}>{catchToast}</Text>
         </View>
       )}
 
@@ -207,6 +260,18 @@ export default function HomeScreen() {
           accessibilityLabel={`Tap the slime to make goo. Each tap gives ${formatNumber(tapValue)} goo.`}
           accessibilityHint="Double tap to collect goo"
         />
+
+        {/* The visitor sits AFTER the main target so its own small Pressable
+            wins inside its little box, while every touch outside that box
+            still falls through to the goo tap above. */}
+        {visitorHere && (
+          <PopInVisitor
+            def={visitor}
+            slimeId={popInSlimeId!}
+            expiresAt={popInExpiresAt}
+            onCatch={handleCatch}
+          />
+        )}
       </View>
 
       <Text style={styles.hint}>+{formatNumber(tapValue)} per tap</Text>
@@ -217,7 +282,34 @@ export default function HomeScreen() {
         {formatNumber(totalTaps)} taps · {formatGps(gps)}
       </Text>
 
+      <CareControls nowMs={nowMs} />
+
       <ScrollView contentContainerStyle={[styles.summary, { paddingBottom: bottomPad }]} showsVerticalScrollIndicator={false}>
+        <Pressable
+          style={[styles.bonusCard, !bonusReady && styles.bonusCardWaiting]}
+          onPress={() => setBonusOpen(true)}
+          disabled={!bonusReady}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !bonusReady }}
+          accessibilityLabel={
+            bonusReady
+              ? 'Bonus round ready. Stop the marker in the centre for a multiplier.'
+              : `Bonus round recharging, ${formatDuration(bonusWait)} left`
+          }
+        >
+          <Text style={styles.bonusEmoji}>🎡</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.bonusTitle, !bonusReady && styles.bonusTitleWaiting]}>
+              {bonusReady ? 'Bonus round ready' : 'Bonus round'}
+            </Text>
+            <Text style={styles.bonusSub}>
+              {bonusReady
+                ? 'Stop the marker dead centre for up to 5x'
+                : `Recharging · ${formatDuration(bonusWait)}`}
+            </Text>
+          </View>
+        </Pressable>
+
         <Pressable
           style={styles.dailyCard}
           onPress={() => router.push('/daily')}
@@ -276,6 +368,12 @@ export default function HomeScreen() {
       <SkinFoundModal
         skin={foundSkinId ? SKIN_BY_ID[foundSkinId] : null}
         onClose={() => setFoundSkinId(null)}
+      />
+
+      <BonusRoundModal
+        visible={bonusOpen}
+        onStop={playBonusRound}
+        onClose={() => setBonusOpen(false)}
       />
     </GameScreen>
   );
@@ -346,6 +444,38 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     minHeight: 44,
   },
+  frenzyBadge: { borderColor: '#5BE9E9', backgroundColor: 'rgba(91,233,233,0.14)' },
+  frenzyText: { color: '#5BE9E9', letterSpacing: 1 },
+  catchToast: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(143,214,148,0.18)',
+    borderColor: theme.accentGreen,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginHorizontal: 20,
+    marginBottom: 4,
+  },
+  catchToastText: { color: theme.accentGreen, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  bonusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(20,26,22,0.66)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.accentGold,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    minHeight: 44,
+  },
+  bonusCardWaiting: { borderColor: theme.cardBorder },
+  bonusEmoji: { fontSize: 22 },
+  bonusTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
+  bonusTitleWaiting: { color: theme.textSecondary },
+  bonusSub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   dailyTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
   dailySub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   dailyBadge: {

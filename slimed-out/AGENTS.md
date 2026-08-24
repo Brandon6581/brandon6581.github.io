@@ -10,3 +10,10 @@ The tap stage on the home screen keeps animation and gesture handling on
 separate nodes on purpose. Never attach a Pressable, responder, or gesture to
 the animated slime sprite, and never animate the touch target. See the comment
 block at the top of `app/(tabs)/index.tsx`.
+
+This applies to every tappable thing on the stage, not just the main slime. The
+rare visitor (`src/components/PopInVisitor.tsx`) follows the same two-layer
+split. Note especially that an `Animated.View` wrapping a `TouchableOpacity` is
+the *same bug in a different shape* - the responder treats finger movement as a
+drag on the animated parent and eats the press. Animate a sibling, never an
+ancestor of the touch target.
