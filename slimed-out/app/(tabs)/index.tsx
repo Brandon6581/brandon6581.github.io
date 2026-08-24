@@ -30,6 +30,7 @@ import { PopInVisitor } from '@/src/components/PopInVisitor';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
 import { describeEssenceBonus } from '@/src/game/ascension';
 import { readyRewardCount } from '@/src/game/daily';
+import { playerRank } from '@/src/game/leaderboard';
 import { VISITOR_BY_ID } from '@/src/game/eventData';
 import { bonusRoundReady, bonusRoundWaitMs, popInActive, visitorDef } from '@/src/game/events';
 import { ownedSkinIds } from '@/src/game/entitlements';
@@ -254,6 +255,11 @@ export default function HomeScreen() {
   const essenceHeld = state.slimeEssence;
   const pendingEssence = state.calculatePendingEssence();
   const ascendReady = pendingEssence > 0;
+  const boardRank = playerRank({
+    name: state.displayName,
+    allTimeGoo: state.lifetimeGoo,
+    slimeEssence: state.slimeEssence,
+  });
 
   return (
     <GameScreen title={farmName}>
@@ -408,6 +414,19 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
+        <Pressable
+          style={styles.boardCard}
+          onPress={() => router.push('/leaderboard')}
+          accessibilityRole="button"
+          accessibilityLabel={`Leaderboard. You are ranked ${boardRank}.`}
+        >
+          <Text style={styles.boardEmoji}>🏅</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.boardTitle}>Leaderboard</Text>
+            <Text style={styles.boardSub}>Ranked #{boardRank} · redeem codes</Text>
+          </View>
+        </Pressable>
+
         <Text style={styles.summaryTitle}>Your collection</Text>
         {ownedSummary.length === 0 ? (
           <Text style={styles.empty}>
@@ -555,6 +574,22 @@ const styles = StyleSheet.create({
   ascendTitle: { color: theme.accentBlue, fontSize: 15, fontWeight: '800' },
   ascendTitleIdle: { color: theme.textSecondary },
   ascendSub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
+  boardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(20,26,22,0.66)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.cardBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    minHeight: 44,
+  },
+  boardEmoji: { fontSize: 22 },
+  boardTitle: { color: theme.textSecondary, fontSize: 15, fontWeight: '800' },
+  boardSub: { color: theme.textMuted, fontSize: 12, marginTop: 2 },
   dailyTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
   dailySub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   dailyBadge: {

@@ -41,19 +41,36 @@ export default function AscensionScreen() {
   const currentBonus = describeEssenceBonus(state.slimeEssence);
   const afterBonus = describeEssenceBonus(state.slimeEssence + pending);
 
+  /** Shows a native alert, falling back to the toast where Alert is inert. */
+  const announce = (title: string, message: string) => {
+    setToast(message);
+    if (Platform.OS === 'web') return;
+    Alert.alert(title, message, [{ text: 'Nice' }]);
+  };
+
   const ascend = () => {
-    const result = triggerAscension();
-    if (!result) {
-      // Belt and braces: the button is disabled when locked, so this is only
-      // reachable if the gate closed between render and press.
-      setToast('Not enough lifetime goo to ascend yet.');
-      return;
+    // The action returns null rather than throwing, so this catch is for the
+    // unexpected - a persistence failure mid-write, say. An ascension wipes a
+    // run, so a silent crash here would be the worst possible moment for one.
+    try {
+      const result = triggerAscension();
+      if (!result) {
+        // The button is disabled when locked, so this is only reachable if the
+        // gate closed between render and press.
+        announce('Not yet', 'Not enough all-time goo to ascend yet.');
+        return;
+      }
+      haptics.milestone();
+      announce(
+        'Ascended',
+        `+${formatNumber(result.essenceGained)} Slime Essence. You now hold ` +
+          `${formatNumber(result.totalEssence)}, for ${describeEssenceBonus(result.totalEssence)} ` +
+          `to all production and tap power.`
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown error';
+      announce('Ascension failed', `Something went wrong and nothing was changed. ${detail}`);
     }
-    haptics.milestone();
-    setToast(
-      `Ascended. +${formatNumber(result.essenceGained)} essence — you now hold ` +
-        `${formatNumber(result.totalEssence)}.`
-    );
   };
 
   const confirm = () => {
@@ -132,8 +149,12 @@ export default function AscensionScreen() {
             )}
           </View>
 
-          <Text style={styles.sectionTitle}>You keep</Text>
-          <View style={styles.card}>
+          {/* The two outcomes get deliberately opposed boundary boxes. This is
+              a destructive, irreversible action, so which side of the line a
+              value falls on has to be readable at a glance rather than needing
+              the labels to be read carefully. */}
+          <Text style={[styles.sectionTitle, styles.keepTitle]}>Safe · kept forever</Text>
+          <View style={[styles.card, styles.keepCard]}>
             {KEPT.map((line) => (
               <Text key={line} style={styles.keepLine}>
                 ✓ {line}
@@ -141,13 +162,16 @@ export default function AscensionScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>You lose</Text>
-          <View style={styles.card}>
+          <Text style={[styles.sectionTitle, styles.loseTitle]}>Wiped · this run resets</Text>
+          <View style={[styles.card, styles.loseCard]}>
             {LOST.map((line) => (
               <Text key={line} style={styles.loseLine}>
                 ✕ {line}
               </Text>
             ))}
+            <Text style={styles.loseWarning}>
+              This cannot be undone. Everything above is gone the moment you ascend.
+            </Text>
           </View>
 
           <Pressable
@@ -227,8 +251,27 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   barFill: { height: 8, borderRadius: 4, backgroundColor: theme.accentBlue },
-  keepLine: { color: theme.accentGreen, fontSize: 13, lineHeight: 18 },
-  loseLine: { color: theme.danger, fontSize: 13, lineHeight: 18 },
+  keepTitle: { color: theme.accentGreen },
+  keepCard: {
+    borderColor: theme.accentGreen,
+    borderWidth: 2,
+    backgroundColor: 'rgba(143,214,148,0.10)',
+  },
+  keepLine: { color: theme.accentGreen, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  loseTitle: { color: theme.danger },
+  loseCard: {
+    borderColor: theme.danger,
+    borderWidth: 2,
+    backgroundColor: 'rgba(227,103,103,0.12)',
+  },
+  loseLine: { color: theme.danger, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  loseWarning: {
+    color: theme.danger,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '800',
+    marginTop: 4,
+  },
   ascend: {
     backgroundColor: theme.accentBlue,
     borderRadius: 14,

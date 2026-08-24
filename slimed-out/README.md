@@ -38,6 +38,9 @@ own, buy upgrades, and keep earning while the app is closed.
   on how much your all-time goo grew since your last ascension, so every goo
   counts exactly once. Achievements, skins, purchases and your streak all
   survive.
+- **Leaderboard**: a local board ranking you against ten fixed rivals by
+  all-time goo. No accounts, no servers, nothing uploaded — it all runs off your
+  own save. Redemption codes are entered here and work entirely offline.
 - **Feel**: taps give a light haptic tick and a rare find a stronger one, and
   the goo you earn floats up from wherever your finger landed. Vibration can be
   turned off in Settings.

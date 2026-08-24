@@ -24,6 +24,7 @@ are still standing in for the real thing.
 - [Live events and achievements](#live-events-and-achievements)
 - [Feel: haptics and floating text](#feel-haptics-and-floating-text)
 - [Ascension (prestige)](#ascension-prestige)
+- [Local leaderboard and codes](#local-leaderboard-and-codes)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -134,6 +135,9 @@ src/game/                — pure logic, no UI —
   dailyData.ts           quest pools, streak table, welcome-back constants
   offlineBonus.ts        welcome-back maths; sits below economy to break a cycle
   ascension.ts           prestige maths: essence, multiplier, the gate
+  leaderboard.ts         ranking; pure, computed on read
+  leaderboardData.ts     the ten local competitors
+  codeData.ts            redemption codes — READ THE UPPERCASE WARNING
   events.ts              spawn engine, bonus scoring, care cooldowns
   eventData.ts           visitor pool, spawn odds, bands, care actions
   achievements.ts        evaluation + perk totals (never imports economy)
@@ -496,6 +500,62 @@ button disabled, so that path is only reachable if the gate closed between rende
 and press. Throwing from an action reachable by a button press is a redbox in
 development and an unhandled exception in production, and every other action in
 this store refuses by returning a falsy value.
+
+---
+
+## Local leaderboard and codes
+
+Zero backend. Ten fixed competitors live in `leaderboardData.ts`; the player is
+ranked against them from their own save. Nothing is uploaded and there are no
+accounts.
+
+**Ranking is computed on read, not on change.** The obvious design — subscribe to
+all-time goo and re-sort when it moves — would re-sort an eleven-item list
+several times a second, forever, to feed a screen that is usually closed.
+`leaderboardRows()` is a pure function; sorting eleven entries when the board
+actually renders costs nothing and can never go stale.
+
+**The player's row is pinned when they are outside the top ten.** A plain slice
+would hide a new player from their own leaderboard — the lowest competitor sits
+at 100,000 all-time goo, so anyone below that simply would not appear and the
+screen would read as broken. With eleven entries and a top-ten cut, note that a
+mid-table player pushes the lowest competitor off the board; that is correct.
+
+**The competitors are not persisted.** They never change during play, so a stored
+copy would only bloat every save and freeze the roster at whatever shipped first
+— a later update could never adjust a name or a score, because the loaded copy
+would win. If rivals ever need to creep upward over time, that is when
+persistence earns its place and this array becomes their starting snapshot.
+
+**The board reuses `displayName` rather than a separate alias.** A free,
+unlimited alias field here would quietly undercut the paid "change display name"
+item in the shop. The Change button honours the same one-free-change rule and
+points at the shop afterwards.
+
+### Redemption codes — keep them uppercase
+
+| Code | Reward |
+|---|---|
+| `NORSETH_BONUS` | 25,000 goo |
+| `SLIMETIME2026` | +15 Slime Essence |
+| `CYBER_GLITCH` | The Neon Glitch Crystal skin |
+
+> **This is a build-breaker if you get it wrong.** `check:no-dev-mode` fails the
+> build when the literal lowercase `slimetime` reaches a production bundle — that
+> is the dev-mode activation code. `SLIMETIME2026` lowercased *contains*
+> `slimetime`. So a pre-lowercased constant, a `.toLowerCase()` on a literal, or
+> a lowercase fixture would block the release. Codes are stored uppercase and the
+> **player's input** is normalised upward instead. Verified against a real iOS
+> bundle: `SLIMETIME2026` present, lowercase `slimetime` absent.
+
+Essence granted by a code deliberately does **not** raise
+`lifetimeEssenceEarned`. That counter is the high-water mark ascension awards are
+measured against, so inflating it would silently shrink the next ascension's
+payout — a code would cost the player more than it gave.
+
+Unlike the dev code, these are meant to be shared, so it does not matter that
+they can be found by unpacking the bundle. Keep future rewards sized on that
+basis. `redeemedCodes` holds the normalised keys and each code pays once.
 
 ---
 
@@ -863,6 +923,13 @@ Be precise about this, because it shapes where to look first if something breaks
 | Essence multiplier scales tick and tap alike (×11 both) | Verified in browser |
 | Ascension keeps 12 fields, resets 4 | Verified in browser |
 | v8 → v9 migration honours existing lifetime goo | Verified in browser |
+| Leaderboard ranks 11 entries, cuts to 10, numbers 1..n | Verified in browser |
+| Player row pinned at #11 when outside the top ten | Verified in browser |
+| All three codes grant correctly, case/whitespace insensitive | Verified in browser |
+| Repeat, unknown and empty codes all refused | Verified in browser |
+| Code essence does not inflate `lifetimeEssenceEarned` | Verified in browser |
+| `SLIMETIME2026` ships without tripping the dev-mode grep | Verified against a real iOS bundle |
+| v9 → v10 migration seeds `redeemedCodes` | Verified in browser |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

@@ -74,6 +74,16 @@ export const SLIME_SKINS: SlimeSkinDef[] = [
     look: { body: ['#FF9F6B', '#7A1F2B'], accent: '#FFD9A0', topper: 'flame' },
     findable: false,
   },
+  {
+    // Granted by the CYBER_GLITCH redemption code. Not sold and not findable,
+    // so the code is the only way to hold it.
+    id: 'skin_neon_glitch',
+    slimeId: 'crystal',
+    name: 'Neon Glitch Crystal Slime',
+    blurb: 'Refracts a colour that is not quite in the spectrum. Came through a code.',
+    look: { body: ['#5BE9E9', '#2B1F6B'], accent: '#FF6BE9', topper: 'antenna' },
+    findable: false,
+  },
 ];
 
 export const SKIN_BY_ID: Record<string, SlimeSkinDef> = Object.fromEntries(

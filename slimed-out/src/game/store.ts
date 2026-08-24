@@ -21,6 +21,7 @@ import {
 } from './daily';
 import { newlyUnlocked } from './achievements';
 import { awardableEssence } from './ascension';
+import { CODE_BY_KEY, normalizeCode } from './codeData';
 import { ownsItem } from './entitlements';
 import {
   bonusRoundBase,
@@ -105,6 +106,7 @@ function initialState(): GameState {
     slimeEssence: 0,
     lifetimeEssenceEarned: 0,
     ascensionCount: 0,
+    redeemedCodes: [],
     unlockedAchievements: [],
     seenAchievements: [],
     streakDays: 0,
@@ -158,6 +160,13 @@ export interface AscensionResult {
   ascensionCount: number;
 }
 
+export interface RedeemResult {
+  ok: boolean;
+  /** Why it failed, or what it granted. Rendered straight to the player. */
+  message: string;
+  reason?: 'empty' | 'unknown' | 'already-redeemed';
+}
+
 interface GameActions {
   tap: () => TapResult;
   tick: (deltaSeconds: number) => void;
@@ -186,6 +195,7 @@ interface GameActions {
   calculatePendingEssence: () => number;
   canAscend: () => boolean;
   triggerAscension: () => AscensionResult | null;
+  redeemCode: (input: string) => RedeemResult;
   completeOnboarding: (farmName: string, displayName: string) => void;
   canRenameFarm: () => boolean;
   canRenameSelf: () => boolean;
@@ -632,6 +642,69 @@ export const useGameStore = create<GameStore>()(
         };
       },
 
+      /**
+       * Redeems a one-time code. Returns a result rather than throwing: this is
+       * driven by a text field a player can type anything into, so a wrong code
+       * is an ordinary outcome to render, not an exception.
+       */
+      redeemCode: (input: string) => {
+        const key = normalizeCode(input);
+        if (key.length === 0) {
+          return { ok: false, message: 'Enter a code first.', reason: 'empty' as const };
+        }
+
+        const state = get();
+        // Checked before validity so a repeat of a real code reads as "already
+        // used" rather than "not a code".
+        if (state.redeemedCodes.includes(key)) {
+          return {
+            ok: false,
+            message: `${key} has already been used on this device.`,
+            reason: 'already-redeemed' as const,
+          };
+        }
+
+        const def = CODE_BY_KEY[key];
+        if (!def) {
+          return { ok: false, message: `${key} is not a valid code.`, reason: 'unknown' as const };
+        }
+
+        const patch: Partial<GameState> = { redeemedCodes: [...state.redeemedCodes, key] };
+        let message: string;
+
+        switch (def.reward.kind) {
+          case 'goo':
+            patch.goo = state.goo + def.reward.amount;
+            patch.lifetimeGoo = state.lifetimeGoo + def.reward.amount;
+            message = `${def.label}: +${def.reward.amount.toLocaleString('en-US')} goo.`;
+            break;
+
+          case 'essence':
+            // Essence from a code is granted, not earned, so it deliberately
+            // does NOT raise lifetimeEssenceEarned - that counter is the
+            // high-water mark ascension awards are measured against, and
+            // inflating it would silently reduce the next ascension's payout.
+            patch.slimeEssence = state.slimeEssence + def.reward.amount;
+            message = `${def.label}: +${def.reward.amount} Slime Essence.`;
+            break;
+
+          case 'skin': {
+            if (state.ownedSkins.includes(def.reward.skinId)) {
+              // The code is still consumed: it was valid and it was used.
+              message = `${def.label}: you already had this one.`;
+              break;
+            }
+            patch.ownedSkins = [...state.ownedSkins, def.reward.skinId];
+            message = `${def.label} added to your collection.`;
+            break;
+          }
+        }
+
+        set(patch);
+        get().syncAchievements();
+        return { ok: true, message };
+      },
+
       /** First-run naming is free and does not consume the free changes twice. */
       completeOnboarding: (farmName: string, displayName: string) => {
         set({
@@ -691,7 +764,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 9,
+      version: 10,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -795,6 +868,11 @@ export const useGameStore = create<GameStore>()(
           patched.slimeEssence ??= 0;
           patched.lifetimeEssenceEarned ??= 0;
           patched.ascensionCount ??= 0;
+        }
+
+        if (fromVersion < 10) {
+          // Redemption codes are new; nobody has used one yet.
+          patched.redeemedCodes ??= [];
         }
 
         return patched;

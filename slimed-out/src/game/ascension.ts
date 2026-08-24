@@ -79,8 +79,18 @@ export function ascensionProgress(allTimeCash: number, essenceAlreadyEarned: num
   return Math.max(0, Math.min(1, allTimeCash / target));
 }
 
-/** The bonus as a percentage string, for display. */
+/**
+ * The bonus as a percentage string: essence x 0.02 x 100.
+ *
+ * Guarded, because this renders in a header the player sees constantly and a
+ * corrupt save should degrade to "+0%" rather than "+NaN%".
+ */
+export function essenceBonusPercent(slimeEssence: number): number {
+  if (!Number.isFinite(slimeEssence) || slimeEssence <= 0) return 0;
+  return slimeEssence * ASCENSION_CONSTANTS.PER_ESSENCE_BONUS * 100;
+}
+
 export function describeEssenceBonus(slimeEssence: number): string {
-  const pct = slimeEssence * ASCENSION_CONSTANTS.PER_ESSENCE_BONUS * 100;
-  return `+${pct >= 100 ? Math.round(pct).toLocaleString() : pct.toFixed(0)}%`;
+  const pct = essenceBonusPercent(slimeEssence);
+  return `+${Math.round(pct).toLocaleString('en-US')}%`;
 }

@@ -168,6 +168,13 @@ export interface GameState {
   /** How many times the player has ascended. */
   ascensionCount: number;
 
+  // ---- Social ----
+  /**
+   * Redemption codes already claimed, stored normalised (uppercase). Each code
+   * pays once; this is the whole guard against re-entering one.
+   */
+  redeemedCodes: string[];
+
   // ---- Achievements ----
   /** Permanently unlocked achievement ids. Never cleared. */
   unlockedAchievements: string[];
