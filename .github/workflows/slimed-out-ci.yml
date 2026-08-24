@@ -1,0 +1,83 @@
+name: Slimed Out! CI
+
+# Only the app is checked here. The Pages site at the repo root has no build
+# step, so editing it should not spend several minutes exporting Hermes
+# bundles.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'slimed-out/**'
+      - '.github/workflows/slimed-out-ci.yml'
+  pull_request:
+    paths:
+      - 'slimed-out/**'
+      - '.github/workflows/slimed-out-ci.yml'
+  # Lets a release check be run on demand without pushing anything.
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: slimed-out
+
+concurrency:
+  # A newer push supersedes an in-flight run on the same ref.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast feedback: these two finish in well under a minute and catch most
+  # mistakes, so they are not made to wait on the bundle export.
+  static:
+    name: Typecheck and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Expo SDK 54 supports Node 20 and 22; 22 is what the app was built
+          # and verified against.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: slimed-out/package-lock.json
+
+      # ci, not install: it installs exactly the lockfile and fails outright if
+      # package.json and the lockfile have drifted apart. Dependencies are
+      # pinned to the SDK 54 manifest (see AGENTS.md), so silent drift is
+      # precisely what we want to catch.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+
+      - name: Lint
+        run: npx expo lint
+
+  # The release safeguard. This one matters more than it looks: developer
+  # testing mode is a "free everything" backdoor, and it once leaked into a
+  # production bundle because Metro does not propagate constants across module
+  # boundaries. This exports real production bundles for both platforms and
+  # fails if any dev-mode marker survives.
+  no-dev-mode:
+    name: Dev mode stripped from production bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: slimed-out/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Check production bundles
+        run: npm run check:no-dev-mode
+        env:
+          # Nothing here needs an Expo account, and skipping the remote
+          # lookups keeps the run from failing on an api.expo.dev hiccup.
+          EXPO_NO_TELEMETRY: '1'

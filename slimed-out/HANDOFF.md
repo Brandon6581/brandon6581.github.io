@@ -570,6 +570,12 @@ It exports real production bundles for iOS **and** Android and fails (exit 1) if
 dev-mode marker survives. It is verified to work in both directions: it passes on the
 current code, and it correctly fails when the gate is deliberately weakened.
 
+**This also runs in CI** (`.github/workflows/slimed-out-ci.yml`) on every pull request
+and every push to `main` that touches `slimed-out/`, alongside typecheck and lint. So a
+leak fails the PR rather than waiting to be caught by hand at submission time — but keep
+running it locally before a submission anyway, since the CI run only covers what was
+pushed.
+
 ### The one mistake to avoid
 
 Guards must test `__DEV__` **in the same file** as the code they protect:
@@ -702,6 +708,7 @@ Be precise about this, because it shapes where to look first if something breaks
 | Achievement perks reach the live production figure | Verified in browser |
 | Offline summary waits for the splash, lands on dashboard | Verified in browser |
 | Six tabs still legible at 390px | Verified in browser |
+| CI: typecheck, lint, dev-mode strip on every PR | Workflow added; all three verified from a clean tree |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile
