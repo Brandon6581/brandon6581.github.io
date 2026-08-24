@@ -28,6 +28,7 @@ import {
 import { GameScreen } from '@/src/components/GameScreen';
 import { PopInVisitor } from '@/src/components/PopInVisitor';
 import { SkinFoundModal } from '@/src/components/SkinFoundModal';
+import { describeEssenceBonus } from '@/src/game/ascension';
 import { readyRewardCount } from '@/src/game/daily';
 import { VISITOR_BY_ID } from '@/src/game/eventData';
 import { bonusRoundReady, bonusRoundWaitMs, popInActive, visitorDef } from '@/src/game/events';
@@ -250,6 +251,9 @@ export default function HomeScreen() {
   const visitorHere = visitor != null && popInActive(state, nowMs);
   const bonusReady = bonusRoundReady(state, nowMs);
   const bonusWait = bonusRoundWaitMs(state, nowMs);
+  const essenceHeld = state.slimeEssence;
+  const pendingEssence = state.calculatePendingEssence();
+  const ascendReady = pendingEssence > 0;
 
   return (
     <GameScreen title={farmName}>
@@ -378,6 +382,31 @@ export default function HomeScreen() {
             </View>
           )}
         </Pressable>
+
+        {(ascendReady || essenceHeld > 0) && (
+          <Pressable
+            style={[styles.ascendCard, !ascendReady && styles.ascendCardIdle]}
+            onPress={() => router.push('/ascension')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              ascendReady
+                ? 'Ascension ready. Trade this run for permanent Slime Essence.'
+                : `Ascension. You hold ${formatNumber(essenceHeld)} Slime Essence.`
+            }
+          >
+            <Text style={styles.ascendEmoji}>🌌</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.ascendTitle, !ascendReady && styles.ascendTitleIdle]}>
+                {ascendReady ? 'Ascension ready' : 'Ascension'}
+              </Text>
+              <Text style={styles.ascendSub}>
+                {ascendReady
+                  ? `Trade this run for ${formatNumber(pendingEssence)} essence`
+                  : `${formatNumber(essenceHeld)} essence · ${describeEssenceBonus(essenceHeld)} forever`}
+              </Text>
+            </View>
+          </Pressable>
+        )}
 
         <Text style={styles.summaryTitle}>Your collection</Text>
         {ownedSummary.length === 0 ? (
@@ -508,6 +537,24 @@ const styles = StyleSheet.create({
   bonusTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
   bonusTitleWaiting: { color: theme.textSecondary },
   bonusSub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
+  ascendCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(20,24,40,0.7)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.accentBlue,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    minHeight: 44,
+  },
+  ascendCardIdle: { borderColor: theme.cardBorder },
+  ascendEmoji: { fontSize: 22 },
+  ascendTitle: { color: theme.accentBlue, fontSize: 15, fontWeight: '800' },
+  ascendTitleIdle: { color: theme.textSecondary },
+  ascendSub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   dailyTitle: { color: theme.accentGold, fontSize: 15, fontWeight: '800' },
   dailySub: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   dailyBadge: {

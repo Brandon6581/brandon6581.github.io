@@ -153,6 +153,21 @@ export interface GameState {
   timesFed: number;
   timesPetted: number;
 
+  // ---- Ascension (prestige) ----
+  /**
+   * Essence held. Survives ascension, and will be spendable on the skill tree.
+   * The blueprint calls this the non-volatile side of the loop.
+   */
+  slimeEssence: number;
+  /**
+   * Essence ever awarded, which is not the same as essence held once the skill
+   * tree can spend it. This is what the award calculation subtracts against, so
+   * repeated ascensions pay only the increment since the last one.
+   */
+  lifetimeEssenceEarned: number;
+  /** How many times the player has ascended. */
+  ascensionCount: number;
+
   // ---- Achievements ----
   /** Permanently unlocked achievement ids. Never cleared. */
   unlockedAchievements: string[];

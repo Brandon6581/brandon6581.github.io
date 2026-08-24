@@ -23,6 +23,7 @@ are still standing in for the real thing.
 - [Daily engagement](#daily-engagement)
 - [Live events and achievements](#live-events-and-achievements)
 - [Feel: haptics and floating text](#feel-haptics-and-floating-text)
+- [Ascension (prestige)](#ascension-prestige)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -132,6 +133,7 @@ src/game/                — pure logic, no UI —
   daily.ts               period boundaries, counters, streak + reward math
   dailyData.ts           quest pools, streak table, welcome-back constants
   offlineBonus.ts        welcome-back maths; sits below economy to break a cycle
+  ascension.ts           prestige maths: essence, multiplier, the gate
   events.ts              spawn engine, bonus scoring, care cooldowns
   eventData.ts           visitor pool, spawn odds, bands, care actions
   achievements.ts        evaluation + perk totals (never imports economy)
@@ -436,6 +438,67 @@ since it pays no goo and `+0` would read as a bug. Per-call `color`, `scale` and
 
 ---
 
+## Ascension (prestige)
+
+Trade the current run for **Slime Essence**, which permanently multiplies
+everything. `src/game/ascension.ts` holds the maths; the store owns the action.
+
+```
+essence for cash = floor(1500 × √(allTimeGoo / 1,000,000))     0 below the gate
+production bonus = 1 + (essence × 0.02)
+```
+
+| All-time goo | Essence | Multiplier |
+|---|---|---|
+| 1,000,000 | 1,500 | ×31 |
+| 10,000,000 | 4,743 | ×96 |
+| 100,000,000 | 15,000 | ×301 |
+| 1,000,000,000 | 47,434 | ×950 |
+| 1,000,000,000,000 | 1,500,000 | ×30,001 |
+
+Those numbers are large on purpose — a prestige reset has to be worth losing a
+run over — but the first ascension alone is a ×31, so this is the loudest dial
+in the game. `PER_ESSENCE_BONUS` is where to turn it down.
+
+### Why the award is a subtraction
+
+The formula is a function of **all-time** goo, and all-time goo deliberately
+survives an ascension. Handing out its raw result on every ascension would
+therefore pay the same essence over and over: ascend at 1M twice in a row and you
+would hold 3,000 essence having earned 1,500, with no goo spent in between.
+
+`awardableEssence()` subtracts `lifetimeEssenceEarned`, so an ascension pays only
+the growth since the last one and every goo is counted exactly once. That is why
+there are two counters rather than one — `slimeEssence` is the balance (the skill
+tree will spend it) and `lifetimeEssenceEarned` is the high-water mark the award
+is measured against. **Do not collapse them into one field.**
+
+### What survives
+
+| Survives | Resets |
+|---|---|
+| Essence, ascension count, all-time goo | Goo |
+| Achievements and their perks | Every slime owned |
+| Skins, purchases, no-ads, names | Every tap upgrade, and tap power |
+| Streak, daily and weekly progress | |
+| Which slimes are unlocked (a function of all-time goo) | |
+
+Keeping achievements is the opposite of what `resetProgress` does, and that is
+intentional: a full wipe is the player throwing the save away, while an ascension
+is a reward loop that is supposed to bank permanent progress. Keeping unlocks
+also means a returning run re-buys a roster it can already see, rather than
+re-grinding the reveals.
+
+### The gate refuses rather than throws
+
+`triggerAscension()` returns `null` when the gate is shut. The screen keeps the
+button disabled, so that path is only reachable if the gate closed between render
+and press. Throwing from an action reachable by a button press is a redbox in
+development and an unhandled exception in production, and every other action in
+this store refuses by returning a falsy value.
+
+---
+
 ## Tuning
 
 Balance changes are data edits, not code changes. These are the knobs you will actually
@@ -465,6 +528,9 @@ reach for:
 | `BONUS_BANDS` | `eventData.ts` | ×5 → ×0.5 | Accuracy bands and their payouts. |
 | `CARE_ACTIONS` | `eventData.ts` | +25% / +50% | Feed and pet strength, duration, cooldown. |
 | `perk` on an achievement | `achievementData.ts` | ~+55% / +45% total | Free permanent progression. |
+| `PER_ESSENCE_BONUS` | `ascension.ts` | 0.02 | **Loudest dial in the game** — +2% per essence, forever. |
+| `BASE_THRESHOLD` | `ascension.ts` | 1,000,000 | All-time goo before the first ascension. |
+| `ESSENCE_MULTIPLIER` | `ascension.ts` | 1,500 | Essence granted at exactly the threshold. |
 | `firstAdMinLifetimeGoo` | `adService.ts` | 2,500 | Progress gate before any ad can show. |
 | `firstAdMinSessionMs` | `adService.ts` | 4 min | Time gate before the first ad. |
 | `minIntervalMs` | `adService.ts` | 4 min | Floor between any two ads. |
@@ -792,6 +858,11 @@ Be precise about this, because it shapes where to look first if something breaks
 | Crit floater larger and differently coloured (34px gold vs 20px green) | Verified in browser |
 | Floaters unmount: 14 mounted → 0 after the animation | Verified in browser |
 | No runtime import cycles in `src/game` | Verified against compiled JS; Metro silent |
+| Ascension formula, gate and clamps | Unit tested — 21/21 pass |
+| Double-ascend cannot double-pay | Unit tested + verified in browser |
+| Essence multiplier scales tick and tap alike (×11 both) | Verified in browser |
+| Ascension keeps 12 fields, resets 4 | Verified in browser |
+| v8 → v9 migration honours existing lifetime goo | Verified in browser |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

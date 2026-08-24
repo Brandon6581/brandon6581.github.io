@@ -20,6 +20,7 @@ import {
   weekKey,
 } from './daily';
 import { newlyUnlocked } from './achievements';
+import { awardableEssence } from './ascension';
 import { ownsItem } from './entitlements';
 import {
   bonusRoundBase,
@@ -101,6 +102,9 @@ function initialState(): GameState {
     lastPettedAt: 0,
     timesFed: 0,
     timesPetted: 0,
+    slimeEssence: 0,
+    lifetimeEssenceEarned: 0,
+    ascensionCount: 0,
     unlockedAchievements: [],
     seenAchievements: [],
     streakDays: 0,
@@ -148,6 +152,12 @@ export interface BonusResult {
   label: string;
 }
 
+export interface AscensionResult {
+  essenceGained: number;
+  totalEssence: number;
+  ascensionCount: number;
+}
+
 interface GameActions {
   tap: () => TapResult;
   tick: (deltaSeconds: number) => void;
@@ -173,6 +183,9 @@ interface GameActions {
   careFor: (id: CareActionDef['id']) => boolean;
   syncAchievements: () => void;
   markAchievementsSeen: () => void;
+  calculatePendingEssence: () => number;
+  canAscend: () => boolean;
+  triggerAscension: () => AscensionResult | null;
   completeOnboarding: (farmName: string, displayName: string) => void;
   canRenameFarm: () => boolean;
   canRenameSelf: () => boolean;
@@ -576,6 +589,49 @@ export const useGameStore = create<GameStore>()(
         set((s) => ({ seenAchievements: [...s.unlockedAchievements] }));
       },
 
+      /** Essence an ascension would pay right now. Zero means the gate is shut. */
+      calculatePendingEssence: () => {
+        const s = get();
+        return awardableEssence(s.lifetimeGoo, s.lifetimeEssenceEarned);
+      },
+
+      canAscend: () => get().calculatePendingEssence() > 0,
+
+      /**
+       * Ascend: bank the essence, wipe the run, keep everything permanent.
+       *
+       * Returns null rather than throwing when the gate is shut. The blueprint
+       * throws here, but this store's actions all refuse by returning a falsy
+       * value, and an exception raised inside a press handler is a redbox in
+       * development and an unhandled rejection in production - a rough outcome
+       * for a button the player is allowed to look at while it is disabled. The
+       * screen keeps the button disabled; this is the second line of defence.
+       */
+      triggerAscension: () => {
+        const state = get();
+        const essence = awardableEssence(state.lifetimeGoo, state.lifetimeEssenceEarned);
+        if (essence <= 0) return null;
+
+        const fresh = initialState();
+        set({
+          // ---- Volatile: the run resets ----
+          goo: 0,
+          slimes: fresh.slimes,
+          purchasedTapUpgrades: [],
+          tapPower: fresh.tapPower,
+
+          // ---- Non-volatile: the reason to do it again ----
+          slimeEssence: state.slimeEssence + essence,
+          lifetimeEssenceEarned: state.lifetimeEssenceEarned + essence,
+          ascensionCount: state.ascensionCount + 1,
+        });
+        return {
+          essenceGained: essence,
+          totalEssence: state.slimeEssence + essence,
+          ascensionCount: state.ascensionCount + 1,
+        };
+      },
+
       /** First-run naming is free and does not consume the free changes twice. */
       completeOnboarding: (farmName: string, displayName: string) => {
         set({
@@ -635,7 +691,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 8,
+      version: 9,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -729,6 +785,16 @@ export const useGameStore = create<GameStore>()(
           // Vibration is opt-out: existing players keep the behaviour they
           // already had, which was haptics always on.
           patched.hapticsEnabled ??= true;
+        }
+
+        if (fromVersion < 9) {
+          // Ascension is new. Everyone starts unascended - crucially with
+          // lifetimeEssenceEarned at 0, so a long-standing player's existing
+          // lifetime goo is honoured in full on their first ascension rather
+          // than being treated as already paid out.
+          patched.slimeEssence ??= 0;
+          patched.lifetimeEssenceEarned ??= 0;
+          patched.ascensionCount ??= 0;
         }
 
         return patched;

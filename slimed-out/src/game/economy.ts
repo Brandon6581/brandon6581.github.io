@@ -1,4 +1,5 @@
 import { achievementPerks } from './achievements';
+import { gameplaySelectors } from './ascension';
 import { ownedItemIds, ownedSkinIds } from './entitlements';
 import { welcomeBackBonus } from './offlineBonus';
 import {
@@ -139,8 +140,24 @@ export function baseGlobalMultiplier(state: GameState): number {
     globalMilestoneMultiplier(state) *
     shopGlobalMultiplier(state) *
     skinGlobalMultiplier(state) *
-    achievementPerks(state).production
+    achievementPerks(state).production *
+    ascensionMultiplier(state)
   );
+}
+
+/**
+ * The prestige bonus from Slime Essence.
+ *
+ * Deliberately folded in here rather than added to the tap handler and the tick
+ * loop separately. `baseGlobalMultiplier` already feeds `computeGps` (which the
+ * tick uses) and `computeTapValue` (which the manual tap uses), so one line
+ * reaches both and there is no way for the two to drift apart later. Being in
+ * the *base* rather than the temporary multiplier is also correct: essence is
+ * permanent progression, like achievements, so quest targets and quest rewards
+ * scale with it together.
+ */
+export function ascensionMultiplier(state: GameState): number {
+  return gameplaySelectors.getGlobalProductionMultiplier(state.slimeEssence);
 }
 
 /** Full multiplier including any running boost. Use for live play and display. */

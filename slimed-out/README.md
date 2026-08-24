@@ -32,6 +32,12 @@ own, buy upgrades, and keep earning while the app is closed.
   they produced while you were away, capped at 8 hours by default (see
   `src/game/economy.ts`). Come back after a real absence and a **welcome-back
   bonus** is added on top, scaled to how long you were gone.
+- **Ascension**: once you've earned a million goo all-time, you can trade the
+  whole run — goo, slimes, tap upgrades — for **Slime Essence**, which adds a
+  permanent +2% to everything per point and never goes away. Essence is awarded
+  on how much your all-time goo grew since your last ascension, so every goo
+  counts exactly once. Achievements, skins, purchases and your streak all
+  survive.
 - **Feel**: taps give a light haptic tick and a rare find a stronger one, and
   the goo you earn floats up from wherever your finger landed. Vibration can be
   turned off in Settings.
