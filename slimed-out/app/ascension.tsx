@@ -13,6 +13,7 @@ import {
 import { resolveBackdrop } from '@/src/game/backgroundData';
 import { ownedItemIds } from '@/src/game/entitlements';
 import { useGameStore } from '@/src/game/store';
+import { sound } from '@/src/audio/soundEngine';
 import { haptics } from '@/src/feel/haptics';
 import { theme } from '@/src/theme';
 import { formatNumber } from '@/src/utils/format';
@@ -61,6 +62,7 @@ export default function AscensionScreen() {
         return;
       }
       haptics.milestone();
+      sound.ascend();
       announce(
         'Ascended',
         `+${formatNumber(result.essenceGained)} Slime Essence. You now hold ` +

@@ -10,6 +10,11 @@ import { BACKDROPS, isBackdropUnlocked } from '@/src/game/backgroundData';
 import { adsRemoved, ownedItemIds, ownsItem } from '@/src/game/entitlements';
 import { DEFAULT_DISPLAY_NAME, DEFAULT_FARM_NAME, useGameStore } from '@/src/game/store';
 import { hapticsSupported } from '@/src/feel/haptics';
+import {
+  REMINDER_HOUR,
+  clearScheduledReminders,
+  scheduleDailyReminder,
+} from '@/src/game/reminders';
 import { theme } from '@/src/theme';
 
 export default function SettingsScreen() {
@@ -18,6 +23,32 @@ export default function SettingsScreen() {
   const toggleSound = useGameStore((s) => s.toggleSound);
   const hapticsEnabled = useGameStore((s) => s.hapticsEnabled);
   const toggleHaptics = useGameStore((s) => s.toggleHaptics);
+  const remindersEnabled = useGameStore((s) => s.remindersEnabled);
+  const setRemindersEnabled = useGameStore((s) => s.setRemindersEnabled);
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderNote, setReminderNote] = useState<string | null>(null);
+
+  /**
+   * The switch only settles to "on" once a reminder is genuinely queued. If
+   * permission is refused it snaps back and says why, rather than sitting on
+   * with nothing scheduled behind it.
+   */
+  const handleReminders = async (next: boolean) => {
+    setReminderBusy(true);
+    try {
+      if (!next) {
+        await clearScheduledReminders();
+        setRemindersEnabled(false);
+        setReminderNote('Reminders off. Nothing is scheduled.');
+        return;
+      }
+      const result = await scheduleDailyReminder();
+      setRemindersEnabled(result.ok);
+      setReminderNote(result.message);
+    } finally {
+      setReminderBusy(false);
+    }
+  };
   const resetProgress = useGameStore((s) => s.resetProgress);
   const state = useGameStore();
   const noAdsPurchased = adsRemoved(state);
@@ -140,6 +171,22 @@ export default function SettingsScreen() {
             {hapticsSupported()
               ? 'A light tick on every tap, and a stronger one for rare finds.'
               : 'This device has no vibration motor.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>Daily reminder</Text>
+            <Switch
+              value={remindersEnabled}
+              onValueChange={handleReminders}
+              disabled={reminderBusy}
+              accessibilityLabel="Daily reminder"
+            />
+          </View>
+          <Text style={styles.hint}>
+            {reminderNote ??
+              `A single nudge at ${REMINDER_HOUR}:00 so a login streak does not lapse. Nothing is sent over the internet — it is scheduled on this device.`}
           </Text>
         </View>
 

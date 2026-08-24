@@ -25,6 +25,7 @@ are still standing in for the real thing.
 - [Feel: haptics and floating text](#feel-haptics-and-floating-text)
 - [Ascension (prestige)](#ascension-prestige)
 - [Local leaderboard and codes](#local-leaderboard-and-codes)
+- [Ambience, reminders and sound](#ambience-reminders-and-sound)
 - [Tuning](#tuning)
 - [Monetization](#monetization)
 - [Before release](#before-release)
@@ -135,6 +136,8 @@ src/game/                — pure logic, no UI —
   dailyData.ts           quest pools, streak table, welcome-back constants
   offlineBonus.ts        welcome-back maths; sits below economy to break a cycle
   ascension.ts           prestige maths: essence, multiplier, the gate
+  ambience.ts            time-of-day phases and the next-boundary timer
+  reminders.ts           local daily notification scheduling
   leaderboard.ts         ranking; pure, computed on read
   leaderboardData.ts     the ten local competitors
   codeData.ts            redemption codes — READ THE UPPERCASE WARNING
@@ -559,6 +562,66 @@ basis. `redeemedCodes` holds the normalised keys and each code pays once.
 
 ---
 
+## Ambience, reminders and sound
+
+### Time-of-day tint
+
+`src/game/ambience.ts` maps the device's local hour to one of three phases, and
+`AmbientTint` lays the matching gradient over the illustrated backdrop — the art
+is untouched, so this is one tint layer rather than three sets of scenes.
+
+| Phase | Hours | Feel |
+|---|---|---|
+| Morning Sunrise | 05:00–08:59 | warm amber, pollen motes |
+| Day | 09:00–17:59 | barely-there warmth (daylight is the backdrop's natural look) |
+| Cyber Dusk | 18:00–04:59 | deep violet with a cyan rim, neon drift |
+
+**It cross-fades opacity, never colour.** Animating a gradient's colours can't
+run on the native driver — the same rule that the bonus-round marker broke. Two
+gradients are stacked and the top one's *opacity* animates instead.
+
+`msUntilNextPhase()` lets the timer sleep exactly until the next boundary rather
+than polling. Note the rollover is written out longhand on purpose: leaning on
+`setHours(29)` to overflow into tomorrow works, but correcting for it afterwards
+advances the date *twice* and returns ~32 hours instead of ~8, so the
+evening-to-sunrise change silently misses a day. That bug was caught by a unit
+test at 20:30 and is now covered for all 24 hours.
+
+Because the tint is a full-screen overlay above the tap stage, it is
+`pointerEvents="none"` throughout — verified by re-running the tap-not-drag
+regression with the tint live.
+
+### Daily reminders
+
+Local notifications only: scheduled on the device, fired by the device, no push
+server or token. Two rules:
+
+- **Opt in, never opt out.** Nothing is requested or scheduled until the player
+  turns the Settings switch on. Asking for notification permission on first
+  launch gets denied by most people and there is no second prompt.
+- **Always clear before scheduling.** Every call cancels first. Without that,
+  toggling the switch a few times queues several identical reminders and the
+  player gets buzzed repeatedly — the usual way this feature goes wrong.
+
+The switch only settles to "on" once a reminder is genuinely queued; a refused
+permission snaps it back and explains why. It uses a **daily calendar trigger**,
+not a 24-hour interval: an interval counts from whenever it was last scheduled,
+so someone re-enabling at 3am would start getting 3am reminders.
+
+### Sound
+
+`src/audio/soundEngine.ts` is a **wired-up stub**. Every call site already routes
+through it, `soundEnabled` is honoured, and the cue table is the complete list of
+sounds the game asks for. What is missing is only the playback backend and the
+audio files, so shipping sound means filling in `playCue` and dropping files in
+`assets/sounds/` — no call sites left to hunt down. That ordering is deliberate:
+threading sound calls through thirty screens later is where this rots.
+
+When wiring it: use **expo-audio, not expo-av** (deprecated as of SDK 54), and
+preload the players once rather than constructing one per tap.
+
+---
+
 ## Tuning
 
 Balance changes are data edits, not code changes. These are the knobs you will actually
@@ -700,7 +763,8 @@ It also means none of it is real yet.
 | In-app purchases | **Mock** | `react-native-iap` + store product IDs. |
 | Restore purchases | **Mock** | Returns empty — the mock never left the device. |
 | Receipt validation | **Missing** | Server-side verification before granting entitlements. |
-| Bundle IDs, icons | **Placeholder** | `com.example.slimedout` and stock Expo art in `app.json`. |
+| Bundle IDs | **Set** | `com.norseth.slimedout` on both platforms. **Must match what you register in App Store Connect and Play Console** — changing it after first submission means a new app listing, so confirm it before you upload anything. |
+| Icons | **Placeholder** | Still stock Expo art in `assets/images/`. |
 | Gift a Friend | **Deferred** | Shown as Coming Soon; not a store product. Needs player accounts and a server before it can work. |
 
 ### Checklist
@@ -930,6 +994,14 @@ Be precise about this, because it shapes where to look first if something breaks
 | Code essence does not inflate `lifetimeEssenceEarned` | Verified in browser |
 | `SLIMETIME2026` ships without tripping the dev-mode grep | Verified against a real iOS bundle |
 | v9 → v10 migration seeds `redeemedCodes` | Verified in browser |
+| Ambience phases, edges, guards, 24-hour coverage | Unit tested — 30/30 pass |
+| `msUntilNextPhase` wakes into a new phase at every hour | Unit tested (caught a real 32h-vs-8h bug) |
+| Cyber Dusk tint renders over the backdrop at 23:00 | Verified in browser |
+| Tap-not-drag still 5/5 with the tint overlay live | Verified in browser |
+| Sound, Vibration and Daily reminder rows all present | Verified in browser |
+| v10 → v11 migration leaves reminders opted out | Verified in browser |
+| Hermes bytecode in the production export | Verified by magic bytes `c61fbc03` |
+| Production bundle identifiers | `com.norseth.slimedout`, both platforms |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

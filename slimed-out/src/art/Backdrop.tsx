@@ -1,5 +1,7 @@
 import { useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+
+import { AmbientTint } from './AmbientTint';
 import Svg, {
   Circle,
   Defs,
@@ -151,6 +153,10 @@ export function Backdrop({ def, children }: { def: BackdropDef; children?: React
 
         <Path d="M0 0 H100 V100 H0 Z" fill={`url(#${vignetteId})`} />
       </Svg>
+      {/* Time-of-day tint: over the illustration, under the UI. Every screen
+          uses this component, so putting it here is what makes the whole app
+          shift with the clock rather than just the home screen. */}
+      <AmbientTint />
       {children}
     </View>
   );

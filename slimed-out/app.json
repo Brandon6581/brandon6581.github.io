@@ -12,10 +12,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.slimedout"
+      "bundleIdentifier": "com.norseth.slimedout"
     },
     "android": {
-      "package": "com.example.slimedout",
+      "package": "com.norseth.slimedout",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#141626"
@@ -37,10 +37,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#141626"
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "jsEngine": "hermes"
   }
 }

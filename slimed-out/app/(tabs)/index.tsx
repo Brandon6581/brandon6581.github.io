@@ -38,6 +38,7 @@ import { useTabContentPadding } from '@/src/components/useTabContentPadding';
 import { SKIN_BY_ID, resolveLook } from '@/src/game/skinData';
 import { SLIMES, SLIME_BY_ID } from '@/src/game/slimeData';
 import { useGameStore } from '@/src/game/store';
+import { sound } from '@/src/audio/soundEngine';
 import { haptics } from '@/src/feel/haptics';
 import { theme } from '@/src/theme';
 import { computeGps, computeTapValue } from '@/src/game/economy';
@@ -175,6 +176,7 @@ export default function HomeScreen() {
       const result = catchPopIn();
       if (!result) return;
       haptics.rareReward();
+      sound.visitorCatch();
       const def = VISITOR_BY_ID[result.visitorId];
 
       // The crit burst: bigger, in the visitor's own colour, and lasting long
@@ -202,9 +204,11 @@ export default function HomeScreen() {
     (event: GestureResponderEvent) => {
       const { value, foundSkinId: found } = tap();
       haptics.tap();
+      sound.tap();
       rouse();
       if (found) {
         haptics.rareReward();
+        sound.tapCrit();
         setFoundSkinId(found);
       }
 

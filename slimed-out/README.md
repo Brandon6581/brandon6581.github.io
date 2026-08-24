@@ -38,6 +38,9 @@ own, buy upgrades, and keep earning while the app is closed.
   on how much your all-time goo grew since your last ascension, so every goo
   counts exactly once. Achievements, skins, purchases and your streak all
   survive.
+- **Time of day**: the whole game tints with your device clock — amber at
+  sunrise, clear through the day, deep violet and cyan after six. Optional daily
+  reminders are scheduled on your device, not sent from a server.
 - **Leaderboard**: a local board ranking you against ten fixed rivals by
   all-time goo. No accounts, no servers, nothing uploaded — it all runs off your
   own save. Redemption codes are entered here and work entirely offline.

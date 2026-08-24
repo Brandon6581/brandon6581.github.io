@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEV_GOO_GRANT } from '@/src/dev/devMode';
+import { setSoundEnabled } from '@/src/audio/soundEngine';
 import { setHapticsEnabled } from '@/src/feel/haptics';
 
 import { DEFAULT_BACKDROP_ID } from './backgroundData';
@@ -78,6 +79,7 @@ function initialState(): GameState {
     lastAdShownAt: 0,
     soundEnabled: true,
     hapticsEnabled: true,
+    remindersEnabled: false,
     selectedBackdropId: DEFAULT_BACKDROP_ID,
     farmName: DEFAULT_FARM_NAME,
     displayName: DEFAULT_DISPLAY_NAME,
@@ -180,6 +182,7 @@ interface GameActions {
   markAdShown: () => void;
   toggleSound: () => void;
   toggleHaptics: () => void;
+  setRemindersEnabled: (enabled: boolean) => void;
   setBackdrop: (id: string) => void;
   setFarmName: (name: string) => void;
   setDisplayName: (name: string) => void;
@@ -393,7 +396,20 @@ export const useGameStore = create<GameStore>()(
 
       markAdShown: () => set({ lastAdShownAt: now() }),
 
-      toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
+      toggleSound: () =>
+        set((s) => {
+          const soundEnabled = !s.soundEnabled;
+          setSoundEnabled(soundEnabled);
+          return { soundEnabled };
+        }),
+
+      /**
+       * Records the reminder preference. Scheduling itself is async and lives
+       * in reminders.ts; the caller drives that and only flips this once the
+       * schedule actually took, so a denied permission never leaves the switch
+       * showing "on" with nothing queued.
+       */
+      setRemindersEnabled: (enabled: boolean) => set({ remindersEnabled: enabled }),
 
       /**
        * The engine holds its own copy so a tap handler never has to read the
@@ -752,6 +768,7 @@ export const useGameStore = create<GameStore>()(
           // is no reason to start buzzing at them again.
           soundEnabled: s.soundEnabled,
           hapticsEnabled: s.hapticsEnabled,
+          remindersEnabled: s.remindersEnabled,
           devModeEnabled: s.devModeEnabled,
           onboardingComplete: s.onboardingComplete,
           freeFarmNameUsed: s.freeFarmNameUsed,
@@ -764,7 +781,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_KEY,
       storage: createJSONStorage(() => AsyncStorage),
-      version: 10,
+      version: 11,
       migrate: (persisted, fromVersion) => {
         const state = persisted as Partial<GameState>;
         const patched: Partial<GameState> = { ...state };
@@ -875,6 +892,12 @@ export const useGameStore = create<GameStore>()(
           patched.redeemedCodes ??= [];
         }
 
+        if (fromVersion < 11) {
+          // Reminders are opt-in, so existing players stay opted out rather
+          // than being surprised by a notification they never asked for.
+          patched.remindersEnabled ??= false;
+        }
+
         return patched;
       },
       onRehydrateStorage: () => (state) => {
@@ -882,7 +905,9 @@ export const useGameStore = create<GameStore>()(
         // touches the store. Push the loaded value across before the first
         // tap can happen, or a player who turned vibration off would feel it
         // buzz once on every launch.
-        if (state) setHapticsEnabled(state.hapticsEnabled);
+        if (!state) return;
+        setHapticsEnabled(state.hapticsEnabled);
+        setSoundEnabled(state.soundEnabled);
       },
     }
   )

@@ -90,6 +90,11 @@ export interface GameState {
   soundEnabled: boolean;
   /** Vibration on taps and rewards. Ignored where there is no motor. */
   hapticsEnabled: boolean;
+  /**
+   * Daily streak reminder. Off by default: notification permission is asked for
+   * only when the player turns this on, never on first launch.
+   */
+  remindersEnabled: boolean;
   /** Chosen backdrop variant id; falls back to the free default when unset. */
   selectedBackdropId: string;
 

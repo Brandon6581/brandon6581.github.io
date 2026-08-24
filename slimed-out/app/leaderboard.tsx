@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Backdrop } from '@/src/art/Backdrop';
 import { NameEditor } from '@/src/components/NameEditor';
+import { sound } from '@/src/audio/soundEngine';
 import { haptics } from '@/src/feel/haptics';
 import { resolveBackdrop } from '@/src/game/backgroundData';
 import { ownedItemIds } from '@/src/game/entitlements';
@@ -41,9 +42,11 @@ export default function LeaderboardScreen() {
     setRedeem(result);
     if (result.ok) {
       haptics.confirm();
+      sound.rewardClaim();
       setCodeInput('');
     } else {
       haptics.denied();
+      sound.denied();
     }
   };
 
