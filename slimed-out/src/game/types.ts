@@ -1,5 +1,9 @@
 // Core data shapes for Slimed Out!
 
+import { SlimeLook } from '@/src/art/slimeLook';
+
+import { DailyCounters } from './daily';
+
 export interface SlimeDef {
   id: string;
   name: string;
@@ -15,8 +19,8 @@ export interface SlimeDef {
   baseGps: number;
   /** Lifetime goo earned required before this slime appears in the shop. */
   unlockAtLifetimeGoo: number;
-  emoji: string;
-  colors: [string, string];
+  /** Palette and topper driving the painterly sprite. */
+  look: SlimeLook;
 }
 
 /** Owned-count milestones at which a slime's per-unit production upgrade becomes available. */
@@ -67,6 +71,8 @@ export interface OfflineResult {
   elapsedMs: number;
   cappedMs: number;
   gooEarned: number;
+  /** Extra granted for time away, on top of `gooEarned`. */
+  welcomeBackBonus: number;
 }
 
 export interface GameState {
@@ -82,4 +88,85 @@ export interface GameState {
   createdAt: number;
   lastAdShownAt: number;
   soundEnabled: boolean;
+  /** Chosen backdrop variant id; falls back to the free default when unset. */
+  selectedBackdropId: string;
+
+  // ---- Identity ----
+  /** What the player calls their farm. Editable once `name_your_farm` is owned. */
+  farmName: string;
+  /** The player's display name. Editable once `custom_username` is owned. */
+  displayName: string;
+
+  // ---- Collection ----
+  /** Skin ids the player owns, whether bought or found during play. */
+  ownedSkins: string[];
+
+  // ---- Convenience ----
+  /** Epoch ms when the temporary production boost ends; 0 when inactive. */
+  boostExpiresAt: number;
+  /** Multiplier applied while the boost is running. */
+  boostMultiplier: number;
+
+  // ---- Daily engagement ----
+  /** Consecutive days claimed. 0 before the first claim. */
+  streakDays: number;
+  /** Day key of the last streak claim; '' when never claimed. */
+  lastStreakClaimDay: string;
+  /** Day the daily counters belong to; they reset when it changes. */
+  dailyKey: string;
+  dailyCounters: DailyCounters;
+  /** Quest ids already claimed within the current day. */
+  claimedQuestIds: string[];
+  /** Week the weekly counters belong to. */
+  weeklyKey: string;
+  weeklyCounters: DailyCounters;
+  weeklyClaimed: boolean;
+
+  // ---- Live events ----
+  /** Which roster slime is wearing the visitor look, or null when none. */
+  popInSlimeId: string | null;
+  /** Which entry of RARE_VISITORS is visiting. */
+  visitorTypeId: string | null;
+  /** When the current visitor leaves. */
+  popInExpiresAt: number;
+  /** When the spawn engine last ran a check. Persisted so a reload cannot re-roll. */
+  lastSpawnCheckAt: number;
+  /** When a visitor last spawned, driving the pity timer. */
+  lastSpawnAt: number;
+  popInsCaught: number;
+
+  /** Frenzy buff from a caught Glitch Slime. */
+  frenzyExpiresAt: number;
+  frenzyMultiplier: number;
+
+  /** When the next free bonus round unlocks. */
+  nextBonusRoundAt: number;
+  bonusRoundsPlayed: number;
+  /** Best accuracy multiplier ever landed, for the achievement. */
+  bestBonusMultiplier: number;
+
+  /** Care timestamps. Cooldown and buff duration both derive from these. */
+  lastFedAt: number;
+  lastPettedAt: number;
+  timesFed: number;
+  timesPetted: number;
+
+  // ---- Achievements ----
+  /** Permanently unlocked achievement ids. Never cleared. */
+  unlockedAchievements: string[];
+  /** Which of those the player has actually looked at, for the tab badge. */
+  seenAchievements: string[];
+
+  /** First-run flow finished (studio splash -> welcome -> naming -> how to play). */
+  onboardingComplete: boolean;
+  /** Each player gets one free naming; further changes need the shop item. */
+  freeFarmNameUsed: boolean;
+  freeDisplayNameUsed: boolean;
+
+  /**
+   * Developer testing mode. Persisted so testing survives a reload, but it
+   * only has any effect when the build-time gate in src/dev/devMode.ts allows
+   * it - a release build ignores this flag entirely.
+   */
+  devModeEnabled: boolean;
 }

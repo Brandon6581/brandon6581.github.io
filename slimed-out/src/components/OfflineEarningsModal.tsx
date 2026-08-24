@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OfflineResult } from '@/src/game/types';
+import { theme } from '@/src/theme';
 import { formatDuration, formatNumber } from '@/src/utils/format';
 
 export function OfflineEarningsModal({
@@ -17,13 +18,23 @@ export function OfflineEarningsModal({
           <Text style={styles.emoji}>🫙</Text>
           <Text style={styles.title}>Welcome back!</Text>
           {result && (
-            <Text style={styles.body}>
-              Your slimes kept working while you were away for{' '}
-              <Text style={styles.bold}>{formatDuration(result.cappedMs)}</Text> and made{' '}
-              <Text style={styles.bold}>{formatNumber(result.gooEarned)} goo</Text>.
-            </Text>
+            <>
+              <Text style={styles.body}>
+                Your slimes kept working while you were away for{' '}
+                <Text style={styles.bold}>{formatDuration(result.cappedMs)}</Text> and made{' '}
+                <Text style={styles.bold}>{formatNumber(result.gooEarned)} goo</Text>.
+              </Text>
+              {result.welcomeBackBonus > 0 && (
+                <View style={styles.bonusRow}>
+                  <Text style={styles.bonusLabel}>Welcome back bonus</Text>
+                  <Text style={styles.bonusValue}>
+                    +{formatNumber(result.welcomeBackBonus)} goo
+                  </Text>
+                </View>
+              )}
+            </>
           )}
-          <Pressable style={styles.button} onPress={onClose}>
+          <Pressable style={styles.button} onPress={onClose} accessibilityRole="button">
             <Text style={styles.buttonText}>Nice!</Text>
           </Pressable>
         </View>
@@ -63,6 +74,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  bonusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(245,196,81,0.14)',
+    borderColor: theme.accentGold,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginTop: 4,
+  },
+  bonusLabel: { color: theme.accentGold, fontSize: 12, fontWeight: '800' },
+  bonusValue: { color: theme.accentGold, fontSize: 14, fontWeight: '800' },
   bold: {
     color: '#8FD694',
     fontWeight: '700',

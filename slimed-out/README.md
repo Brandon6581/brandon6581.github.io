@@ -4,42 +4,75 @@ An idle slime-collecting clicker built with [Expo](https://expo.dev) / React Nat
 Tap to make goo, unlock a growing collection of slimes that produce goo on their
 own, buy upgrades, and keep earning while the app is closed.
 
+> **New to this codebase?** [`HANDOFF.md`](./HANDOFF.md) is the developer handoff -
+> code map, economy tuning knobs, what's still mocked before release, and the
+> non-obvious traps worth knowing about first.
+
 ## Gameplay
 
-- **Tap** the Basic Slime on the Home tab to earn goo directly.
-- **Slimes** (Slimes tab) are idle producers. Each unlocks once you've earned
-  enough lifetime goo, costs more the more you own (a classic 1.15x-per-unit
-  curve), and has its own line of production-doubling upgrades at 1/5/10/25/
-  50/100/150/200 owned.
-- A handful of the later slimes (Golem, Selkie, Bog Wisp, Banshee, Troll) take
-  gentle inspiration from widely-known European folklore. They're written as
-  respectful nods to those legends, not caricatures of any culture - see the
-  "About" section on the Settings tab and the `originNote` field in
-  `src/game/slimeData.ts`.
-- **Upgrades** (Upgrades tab) are tap-power boosts, all bought with in-game
-  goo. Every total-slimes-owned milestone of 25 also grants a free +10%
-  global production bonus.
+- **Tap** the Basic Slime on the Home tab to earn goo directly. It dozes when
+  idle, wakes up when you tap it, and squishes on contact.
+- **Slimes** (Slimes tab) are idle producers - 22 of them. Each unlocks once
+  you've earned enough lifetime goo, costs more the more you own (a classic
+  1.15x-per-unit curve), and has its own line of production-doubling upgrades
+  at 1/5/10/25/50/100/150/200 owned. Tap any one for its character card:
+  portrait, lore, and live stats.
+- Several slimes (Golem, Selkie, Bog Wisp, Banshee, Troll, Kelpie, Brownie,
+  Sprite, Gnome, Gargoyle) take gentle inspiration from widely-known European
+  folklore. They're written as respectful nods to those legends, not
+  caricatures of any culture, and each names its source tradition on its
+  character card - see the `originNote` field in `src/game/slimeData.ts`.
+- **Upgrades** (Upgrades tab) are tap-power boosts - 20 of them, all bought
+  with in-game goo. Every total-slimes-owned milestone of 25 also grants a
+  free +10% global production bonus.
+- **Backdrops**: four free illustrated scenes, picked in Settings. None of them
+  cost money.
 - **Offline progress**: closing the app doesn't stop your slimes. On the next
   launch (or when you background/foreground the app), you get a share of what
   they produced while you were away, capped at 8 hours by default (see
-  `src/game/economy.ts`).
+  `src/game/economy.ts`). Come back after a real absence and a **welcome-back
+  bonus** is added on top, scaled to how long you were gone.
+- **Rare visitors** wander onto the tap stage now and then — catch one before it
+  leaves for a large payout, or a frenzy that sends production haywire for a few
+  minutes. A pity timer guarantees one if it has been too long since the last.
+- **Bonus round** (Home tab, free every 30 minutes): stop a sweeping marker as
+  close to the centre as you can for up to a 5x payout.
+- **Feed and pet** your slimes for short production and tap-power buffs, each on
+  its own cooldown.
+- **Awards** tab: 30 permanent achievements across six categories. They unlock
+  on their own with nothing to claim, and about a third carry a small permanent
+  bonus — free progression that adds up to roughly +55% production and +45% tap
+  power for a complete set.
+- **Daily** (card on the Home tab) collects the retention loop: a login streak
+  with rewards that grow across seven consecutive days and reset if you miss
+  one, three quests drawn fresh each day from a pool of eight, and a bigger
+  weekly challenge. Goo targets and rewards are sized against your own
+  production rather than fixed numbers, so they stay meaningful at every stage
+  of the game - see `src/game/dailyData.ts`.
 - Progress is saved automatically (Zustand + AsyncStorage) after every action
   and on backgrounding, so nothing is lost between sessions.
 
 ## Monetization
 
-Every upgrade needed to fully progress through the game is free and earned by
-playing - nothing below is required.
+Every upgrade needed to fully progress is free and earned by playing - nothing
+below is required, and nothing gates progression.
 
-- **Remove Ads - $0.99**: one-time purchase, turns off interstitial ad breaks.
-  Ads themselves are paced generously: the first one can't appear until a
-  player has made real progress (past the second slime and ~4 minutes of
-  play), and afterwards they're capped to at most once every ~4 minutes. See
-  `src/services/adService.ts` for the exact thresholds.
-- **Add-ons - $0.25 or $0.50 each**: small, optional cosmetics (skins,
-  themes, sound packs, a supporter badge) and a couple of modest, optional
-  accelerators (a small permanent production bonus, extra offline hours).
-  See `src/game/addOnData.ts` for the full catalog.
+- **Remove Ads - $0.99**: one-time, turns off interstitial ad breaks. Ads are
+  paced generously anyway: the first can't appear until a player has made real
+  progress (~4 minutes and 2,500 lifetime goo), then at most once every ~4
+  minutes.
+- **Make it yours - $0.25 to $0.50**: name your farm, choose a display name, or
+  take a supporter badge.
+- **Convenience - $0.50**: double goo for an hour (repeatable), extra offline
+  hours, or a small permanent +5%.
+- **Rare finds - $0.50**: the Golden Slime. It also turns up on its own during
+  normal play - this is only for anyone who never caught one.
+- **Collection - $0.25 to $0.50**: alternate slime skins and tap trails.
+- **Starter Pack - $0.99**: a goo headstart plus two cosmetics, cheaper than
+  buying the parts.
+
+Backdrops are free for everyone and chosen in Settings. "Gift a Friend" and
+"More Farm Plots" appear as Coming Soon and are not purchasable.
 
 Ads and purchases run on **mock services** out of the box so the whole game
 loop, shop, and ad pacing can be built and tested without any store
@@ -52,9 +85,13 @@ a real release.
 ## Project structure
 
 ```
-app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Shop, Settings
-src/game/            Data + pure logic: slimes, upgrades, add-ons, economy,
-                     the persisted Zustand store, and the game loop hook
+app/(tabs)/          Screens: Home (tap), Slimes, Upgrades, Awards, Shop,
+                     Settings
+app/daily.tsx        Login streak, daily quests, weekly challenge
+src/art/             Code-drawn SVG: slime sprites, toppers, backdrops
+src/game/            Data + pure logic: slimes, upgrades, shop, skins,
+                     economy, daily engagement, the persisted store, and
+                     the game loop hook
 src/services/        Ad pacing and IAP abstractions (mock + prod wiring notes)
 src/components/      Shared UI: providers for ads/IAP, modals, screen chrome
 ```
@@ -72,12 +109,37 @@ npx expo start
 
 From the Expo CLI output you can open the app in:
 
+- [Expo Go](https://expo.dev/go) on a physical phone (fastest way to try it - see below)
 - an iOS Simulator or Android Emulator
-- [Expo Go](https://expo.dev/go) on a physical device (fastest way to try it)
 - a web browser (`npx expo start --web`)
 
 Ads and in-app purchases will use their mock/dev implementations in all of
 these - see the Monetization section above.
+
+### Trying it on your phone with Expo Go
+
+Each build of Expo Go bundles exactly **one** Expo SDK version, and it has to
+match the `expo` version in `package.json` or you'll get "Project is
+incompatible with this version of Expo Go".
+
+This project targets **SDK 54**, which is the version currently published on
+the App Store and Play Store - so the stock Expo Go download works on both
+platforms with no extra steps:
+
+1. Install **Expo Go** from the [App Store](https://apps.apple.com/us/app/expo-go/id982107779)
+   or Play Store.
+2. Run `npx expo start` on your computer.
+3. Make sure the phone and computer are on the **same Wi-Fi network**, then
+   scan the QR code from the terminal - with the Camera app on iOS, or from
+   inside Expo Go on Android.
+
+If the phone and computer can't be put on the same network (guest Wi-Fi, VPN,
+or locked-down corporate networks often block this), run
+`npx expo start --tunnel` instead, which routes through Expo's servers.
+
+Note that if you ever upgrade this project past SDK 54, Expo Go is no longer
+distributed on the App Store for SDK 55+ - you'd need a matching build from
+[sign.expo.dev](https://sign.expo.dev) or a development build via EAS.
 
 ## Before publishing to the App Store / Play Store
 
@@ -90,6 +152,7 @@ these - see the Monetization section above.
    `src/services/adService.ts` and `src/services/iapService.ts`.
 3. Create matching product IDs in App Store Connect / Play Console: one
    non-consumable for Remove Ads (`slimed_out_no_ads`, $0.99) and one per
-   add-on id in `src/game/addOnData.ts` ($0.25 or $0.50 each).
+   purchasable id in `src/game/shopData.ts`. Coming Soon entries have no price
+   and must not be created as store products.
 4. Verify purchase receipts server-side before granting entitlements for a
    production release.

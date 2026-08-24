@@ -40,7 +40,7 @@ export function IAPProvider({ children }: { children: React.ReactNode }) {
         if (productId === NO_ADS_PRODUCT_ID) {
           useGameStore.getState().grantNoAds();
         } else {
-          useGameStore.getState().grantAddOn(productId);
+          useGameStore.getState().applyShopItem(productId);
         }
       }
       return result.success;

@@ -48,6 +48,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="achievements"
+        options={{
+          // Kept short on purpose: six tabs share a phone's width, and
+          // "Achievements" truncates to an ellipsis at this size.
+          title: 'Awards',
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="rosette" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="shop"
         options={{
           title: 'Shop',
