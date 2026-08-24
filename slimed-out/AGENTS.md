@@ -18,6 +18,19 @@ the *same bug in a different shape* - the responder treats finger movement as a
 drag on the animated parent and eats the press. Animate a sibling, never an
 ancestor of the touch target.
 
+# Animating with the native driver
+
+Under `useNativeDriver: true` only **transform** and **opacity** may be bound to
+an `Animated.Value`. Binding a layout property - `left`, `top`, `width`,
+`height` - throws *"Style property 'left' is not supported by native animated
+module"* and takes the screen down on device.
+
+This is easy to ship by accident because **react-native-web ignores
+`useNativeDriver` entirely**, so the broken version looks perfect in a browser.
+The bonus-round marker shipped exactly that bug. Set position statically and put
+all motion in a transform; if you need to travel a measured distance, capture the
+container width in `onLayout` and interpolate `translateX` in pixels.
+
 # Touch coordinates
 
 `nativeEvent.locationX` / `locationY` **do not exist on react-native-web** -

@@ -5,9 +5,6 @@ import {
   STREAK_REWARD_FLOOR,
   STREAK_REWARD_SECONDS,
   WEEKLY_CHALLENGES,
-  WELCOME_BACK_MAX,
-  WELCOME_BACK_MIN_AWAY_MS,
-  WELCOME_BACK_PER_HOUR,
 } from './dailyData';
 import { GameState } from './types';
 
@@ -117,17 +114,9 @@ export function nextStreak(lastClaimDay: string, today: string): number | null {
   return lastClaimDay === previousDayKey(today) ? -1 : 1; // -1 = continue, 1 = restart
 }
 
-/**
- * Extra goo for having been away, layered on top of offline earnings rather
- * than replacing them: a share of what was earned offline, growing with hours
- * away and capped so a very long absence cannot dwarf active play.
- */
-export function welcomeBackBonus(offlineGoo: number, awayMs: number): number {
-  if (awayMs < WELCOME_BACK_MIN_AWAY_MS || offlineGoo <= 0) return 0;
-  const hours = awayMs / (60 * 60 * 1000);
-  const share = Math.min(WELCOME_BACK_MAX, hours * WELCOME_BACK_PER_HOUR);
-  return Math.ceil(offlineGoo * share);
-}
+// `welcomeBackBonus` used to live here. It moved to offlineBonus.ts to break a
+// cycle: economy.ts needed it, and this module needs economy.ts. See the note
+// in that file before moving it back.
 
 // ---------------------------------------------------------------------------
 // Period state

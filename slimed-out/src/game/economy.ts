@@ -1,6 +1,6 @@
 import { achievementPerks } from './achievements';
 import { ownedItemIds, ownedSkinIds } from './entitlements';
-import { welcomeBackBonus } from './daily';
+import { welcomeBackBonus } from './offlineBonus';
 import {
   BONUS_BASE_FLOOR,
   BONUS_BASE_SECONDS,

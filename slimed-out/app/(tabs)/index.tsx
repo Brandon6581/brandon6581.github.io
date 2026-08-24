@@ -19,6 +19,7 @@ import { BonusRoundModal } from '@/src/components/BonusRoundModal';
 import { CareControls } from '@/src/components/CareControls';
 import {
   Floater,
+  FloaterOptions,
   FloatingValue,
   MAX_FLOATERS,
   makeFloater,
@@ -153,19 +154,47 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleCatch = useCallback(() => {
-    const result = catchPopIn();
-    if (!result) return;
-    haptics.rareReward();
-    const def = VISITOR_BY_ID[result.visitorId];
-    setCatchToast(
-      result.kind === 'frenzy'
-        ? `${def.name} caught! Production going haywire.`
-        : `${def.name} caught! +${formatNumber(result.reward)} goo`
+  /** Adds a floater and wires its self-unmount. The only way one is created. */
+  const spawnFloater = useCallback((value: number, x: number, y: number, opts?: FloaterOptions) => {
+    const floater = makeFloater(value, x, y, opts);
+    setFloaters((current) => {
+      // Oldest out first, so a rapid tapper sees their newest numbers.
+      const trimmed =
+        current.length >= MAX_FLOATERS ? current.slice(current.length - MAX_FLOATERS + 1) : current;
+      return [...trimmed, floater];
+    });
+    runFloater(floater, () =>
+      setFloaters((current) => current.filter((f) => f.id !== floater.id))
     );
-    if (result.foundSkinId) setFoundSkinId(result.foundSkinId);
-    setTimeout(() => setCatchToast(null), 3200);
-  }, [catchPopIn]);
+  }, []);
+
+  const handleCatch = useCallback(
+    (event: GestureResponderEvent) => {
+      const result = catchPopIn();
+      if (!result) return;
+      haptics.rareReward();
+      const def = VISITOR_BY_ID[result.visitorId];
+
+      // The crit burst: bigger, in the visitor's own colour, and lasting long
+      // enough to register as a different class of event than a goo tap.
+      const origin = stageOrigin.current;
+      spawnFloater(result.reward, event.nativeEvent.pageX - origin.x, event.nativeEvent.pageY - origin.y, {
+        variant: 'crit',
+        color: def.accent,
+        // A frenzy pays no goo, so a number would read as zero. Name the prize.
+        label: result.kind === 'frenzy' ? 'FRENZY!' : undefined,
+      });
+
+      setCatchToast(
+        result.kind === 'frenzy'
+          ? `${def.name} caught! Production going haywire.`
+          : `${def.name} caught! +${formatNumber(result.reward)} goo`
+      );
+      if (result.foundSkinId) setFoundSkinId(result.foundSkinId);
+      setTimeout(() => setCatchToast(null), 3200);
+    },
+    [catchPopIn, spawnFloater]
+  );
 
   const handleTap = useCallback(
     (event: GestureResponderEvent) => {
@@ -196,20 +225,14 @@ export default function HomeScreen() {
       // on both React Native and the web, so it is the portable choice.
       const { pageX, pageY } = event.nativeEvent;
       const origin = stageOrigin.current;
-      const floater = makeFloater(value, pageX - origin.x, pageY - origin.y);
-      setFloaters((current) => {
-        // Oldest out first, so a rapid tapper sees their newest numbers.
-        const trimmed =
-          current.length >= MAX_FLOATERS
-            ? current.slice(current.length - MAX_FLOATERS + 1)
-            : current;
-        return [...trimmed, floater];
-      });
-      runFloater(floater, () =>
-        setFloaters((current) => current.filter((f) => f.id !== floater.id))
-      );
+      const x = pageX - origin.x;
+      const y = pageY - origin.y;
+
+      // Turning up the golden variant is the one thing an ordinary tap can do
+      // that deserves the loud treatment.
+      spawnFloater(value, x, y, found ? { variant: 'crit' } : undefined);
     },
-    [tap, rouse, pop]
+    [tap, rouse, pop, spawnFloater]
   );
 
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });

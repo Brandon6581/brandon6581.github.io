@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import {
+  Animated,
+  Easing,
+  GestureResponderEvent,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from 'react-native';
 
 import { SlimeSprite } from '@/src/art/SlimeSprite';
 import { RareVisitorDef, VISITOR_WARNING_MS } from '@/src/game/eventData';
@@ -41,7 +50,8 @@ export function PopInVisitor({
   def: RareVisitorDef;
   slimeId: string;
   expiresAt: number;
-  onCatch: () => void;
+  /** Passed the press event so the caller can burst text at the touch point. */
+  onCatch: (event: GestureResponderEvent) => void;
 }) {
   const scale = useRef(new Animated.Value(0)).current;
   const blink = useRef(new Animated.Value(1)).current;

@@ -131,6 +131,7 @@ src/game/                — pure logic, no UI —
   economy.ts             all formulas: cost, gps, offline
   daily.ts               period boundaries, counters, streak + reward math
   dailyData.ts           quest pools, streak table, welcome-back constants
+  offlineBonus.ts        welcome-back maths; sits below economy to break a cycle
   events.ts              spawn engine, bonus scoring, care cooldowns
   eventData.ts           visitor pool, spawn odds, bands, care actions
   achievements.ts        evaluation + perk totals (never imports economy)
@@ -412,10 +413,18 @@ setting applied.
 
 ### Floating tap text
 
-Numbers spawn at the finger and drift up over 800ms, unmounting themselves via
-the animation's completion callback. Concurrent floaters are capped
-(`MAX_FLOATERS`, oldest dropped) — a fast tapper fires ten-plus taps a second and
-each one is a mounted animated node.
+Numbers spawn at the finger and drift up, unmounting themselves via the
+animation's completion callback — that callback *is* the lifecycle, so a caller
+that drops it leaks the node. Concurrent floaters are capped (`MAX_FLOATERS`,
+oldest dropped): a fast tapper fires ten-plus taps a second and each one is a
+mounted animated node.
+
+Two variants, in `FLOATER_STYLES`: `tap` (green, 20px, 800ms) for ordinary goo,
+and `crit` (gold, 34px, 1200ms, travels further) for rare hits — catching a
+visitor or turning up the golden variant. A catch overrides the colour to the
+visitor's own accent, and a frenzy catch shows `FRENZY!` instead of a number,
+since it pays no goo and `+0` would read as a bug. Per-call `color`, `scale` and
+`label` overrides sit on top of the variant.
 
 > **The trap, and it is a silent one.** `nativeEvent.locationX` / `locationY` are
 > the obvious fields — already target-relative, no conversion needed. **They do
@@ -658,6 +667,27 @@ not relax the gate. Use the documented `EXPO_PUBLIC_ENABLE_DEV_MODE` opt-in in
 
 ## Known traps
 
+### Keep `economy.ts` and `daily.ts` one-directional
+
+`daily.ts` calls `steadyGps` from `economy.ts`. For a while `economy.ts` also
+called `welcomeBackBonus` from `daily.ts`, and since both are real runtime calls
+rather than type-only imports, that was a genuine module cycle — the kind where
+one side ends up half-initialised depending on which Metro loads first.
+
+`welcomeBackBonus` now lives in `offlineBonus.ts`, which imports only
+`dailyData.ts` and so sits below both:
+
+```
+economy.ts ──> offlineBonus.ts ──> dailyData.ts
+daily.ts   ──> economy.ts
+```
+
+If `offlineBonus.ts` ever needs something from `economy.ts`, the cycle is back.
+Type-only imports are fine in either direction — they erase at compile time, so
+`types.ts` importing `DailyCounters` from `daily.ts` costs nothing. To check the
+real graph, compile to JS first and walk *that*; reading the `.ts` imports
+over-reports, because it cannot tell a type import from a value one.
+
 ### Never put a gesture on the animated sprite
 
 The tap stage in `app/(tabs)/index.tsx` is **two sibling layers**, and they must
@@ -757,6 +787,11 @@ Be precise about this, because it shapes where to look first if something breaks
 | Floater cap holds at 14 under 30 rapid taps, then clears | Verified in browser |
 | Vibration toggle present, disabled where no motor | Verified in browser |
 | v7 → v8 migration defaults vibration on | Verified in browser |
+| Bonus marker animates transform, not `left` | Verified: `left: 0px`, transform driving |
+| Bonus round still scores after the refactor | Verified in browser |
+| Crit floater larger and differently coloured (34px gold vs 20px green) | Verified in browser |
+| Floaters unmount: 14 mounted → 0 after the animation | Verified in browser |
+| No runtime import cycles in `src/game` | Verified against compiled JS; Metro silent |
 | On a physical device | **Not yet** |
 
 Everything above was exercised in a real browser against the web build, plus a compile

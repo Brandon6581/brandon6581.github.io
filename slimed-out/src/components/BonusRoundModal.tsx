@@ -39,6 +39,8 @@ export function BonusRoundModal({
   const drive = useRef(new Animated.Value(0)).current;
   const startedAt = useRef(0);
   const [result, setResult] = useState<BonusResult | null>(null);
+  /** Measured, because a transform needs pixels where a percentage would do. */
+  const [barWidth, setBarWidth] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -67,9 +69,18 @@ export function BonusRoundModal({
 
   // One triangle wave built as an interpolation, so the marker traces exactly
   // the path sweepPosition() describes.
+  //
+  // This drives `translateX` in pixels, NOT `left` in percent. The native
+  // animated module only handles transforms and opacity; handing it a layout
+  // property throws "Style property 'left' is not supported by native animated
+  // module" and takes the screen down on device. react-native-web ignores
+  // useNativeDriver entirely, which is why it looked fine in a browser.
+  // Translating needs a real width, hence the measured bar.
   const inputRange = Array.from({ length: SAMPLES + 1 }, (_, i) => i / SAMPLES);
-  const outputRange = inputRange.map((t) => `${sweepPosition(t * BONUS_SWEEP_PERIOD_MS) * 100}%`);
-  const left = drive.interpolate({ inputRange, outputRange });
+  const translateX = drive.interpolate({
+    inputRange,
+    outputRange: inputRange.map((t) => sweepPosition(t * BONUS_SWEEP_PERIOD_MS) * barWidth),
+  });
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -78,7 +89,10 @@ export function BonusRoundModal({
           <Text style={styles.title}>Bonus round</Text>
           <Text style={styles.body}>Stop the marker as close to the centre as you can.</Text>
 
-          <View style={styles.barWrap}>
+          <View
+            style={styles.barWrap}
+            onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+          >
             {/* Scoring bands, widest first so the tight ones paint on top. */}
             {[...BONUS_BANDS].reverse().map((band) =>
               band.maxDistance === Infinity ? null : (
@@ -97,13 +111,22 @@ export function BonusRoundModal({
               )
             )}
             <View pointerEvents="none" style={styles.centreLine} />
-            {!result && (
-              <Animated.View pointerEvents="none" style={[styles.marker, { left }]} />
+            {/* Held back until the bar has been measured: a transform of 0 would
+                park the marker at the left edge for the first frame. */}
+            {!result && barWidth > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.marker, { transform: [{ translateX }] }]}
+              />
             )}
             {result && (
               <View
                 pointerEvents="none"
-                style={[styles.marker, styles.markerStopped, { left: `${resultLeft(result)}%` }]}
+                style={[
+                  styles.marker,
+                  styles.markerStopped,
+                  { transform: [{ translateX: (resultLeft(result) / 100) * barWidth }] },
+                ]}
               />
             )}
           </View>
